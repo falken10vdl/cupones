@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Sistema de Cupones</title>
+  <style>
+    :root {
+      --primary: #1a1a2e;
+      --accent: #e94560;
+      --success: #4ecca3;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --text: #222;
+      --text-muted: #777;
+      --border: #e0e0e0;
+      --radius: 8px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+      --tab-h: 48px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      background: var(--primary);
+      color: #fff;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #topbar h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px; flex: 1; }
+    #topbar h1 span { color: var(--accent); }
+
+    #pin-area { display: flex; align-items: center; gap: 8px; }
+    #pin-area input {
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      border: 1.5px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 0.85rem;
+      width: 130px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #pin-area input::placeholder { color: rgba(255,255,255,0.45); }
+    #pin-area input:focus { border-color: var(--accent); }
+    #pin-area button {
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    #pin-area button:hover { opacity: .85; }
+    #pin-status {
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #pin-status.unlocked { color: var(--success); }
+    #pin-status.locked   { color: #aaa; }
+
+    /* ── Container ── */
+    #app {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+    }
+
+    /* ── Event banner ── */
+    #event-banner {
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      margin-bottom: 18px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+    #event-banner.visible { display: flex; }
+    #event-banner strong { color: var(--success); }
+    #event-banner button {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    #event-banner button:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Tabs ── */
+    #tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      border-radius: 6px 6px 0 0;
+      transition: color .2s, border-color .2s;
+      position: relative;
+    }
+    .tab-btn:hover { color: var(--primary); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--accent); }
+    .tab-btn.disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+    .tab-btn .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; color: var(--primary); }
+
+    /* ── Form ── */
+    .form-row { margin-bottom: 12px; }
+    .form-row label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .form-row input,
+    .form-row textarea,
+    .form-row select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      background: #fafafa;
+      color: var(--text);
+      outline: none;
+      transition: border-color .2s;
+      font-family: inherit;
+    }
+    .form-row input:focus,
+    .form-row textarea:focus { border-color: var(--accent); background: #fff; }
+    .form-row textarea { resize: vertical; min-height: 90px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 580px) { .form-grid { grid-template-columns: 1fr; } }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: var(--radius);
+      border: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .88; }
+    .btn-secondary { background: var(--primary); color: #fff; }
+    .btn-secondary:hover:not(:disabled) { opacity: .82; }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-sm { padding: 5px 11px; font-size: 0.78rem; }
+    .btn-success { background: var(--success); color: var(--primary); }
+
+    /* ── Event list ── */
+    #events-list { display: flex; flex-direction: column; gap: 8px; }
+    .event-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      gap: 12px;
+    }
+    .event-item:hover { border-color: var(--accent); background: #fef9fa; }
+    .event-item.selected { border-color: var(--accent); background: #fff0f2; }
+    .event-item .event-name { font-weight: 600; font-size: 0.92rem; }
+    .event-item .event-date { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .event-item .event-icon {
+      width: 36px; height: 36px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .event-item.selected .event-icon { background: var(--accent); }
+    .event-item .select-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Barman list ── */
+    #barmans-list { display: flex; flex-direction: column; gap: 8px; }
+    .barman-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      background: #fafafa;
+    }
+    .barman-item .barman-avatar {
+      width: 32px; height: 32px;
+      background: var(--success);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+    .barman-item .barman-name { font-weight: 600; font-size: 0.9rem; }
+    .barman-item .barman-pin { font-size: 0.75rem; color: var(--text-muted); }
+    .barman-count {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 620px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-card .stat-num {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 600;
+    }
+    .stat-card.accent .stat-num { color: var(--accent); }
+    .stat-card.success .stat-num { color: #28a76e; }
+    .stat-card.info   .stat-num { color: #2d9cdb; }
+
+    /* ── Coupon table ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    th {
+      text-align: left;
+      padding: 9px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      background: #f8f8f8;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .badge-success  { background: #d4f5eb; color: #1a7a54; }
+    .badge-info     { background: #d6eaf8; color: #1a6091; }
+    .badge-neutral  { background: #ececec; color: #555; }
+    .badge-warning  { background: #fef3cd; color: #856404; }
+
+    /* ── Code chip ── */
+    .code-chip {
+      font-family: 'Consolas', monospace;
+      background: #f0f0f0;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.82rem;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Generate section ── */
+    .generate-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      width: fit-content;
+    }
+    .gen-tab {
+      padding: 7px 18px;
+      border: none;
+      background: transparent;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background .2s, color .2s;
+    }
+    .gen-tab.active { background: var(--primary); color: #fff; }
+
+    /* ── Monitor ── */
+    .monitor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 580px) { .monitor-grid { grid-template-columns: 1fr; } }
+
+    .progress-bar-wrap {
+      background: #ececec;
+      border-radius: 8px;
+      height: 22px;
+      overflow: hidden;
+      margin: 8px 0 4px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--success), #2ecc71);
+      border-radius: 8px;
+      transition: width 0.5s ease;
+      min-width: 4px;
+    }
+    .progress-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .recent-list { display: flex; flex-direction: column; gap: 7px; }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 13px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fafafa;
+      font-size: 0.83rem;
+    }
+    .recent-item .ri-code { font-family: monospace; font-weight: 700; color: var(--accent); }
+    .recent-item .ri-meta { margin-left: auto; text-align: right; font-size: 0.75rem; color: var(--text-muted); }
+    .refresh-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pulse {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .3; }
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .empty .empty-icon { font-size: 2.2rem; margin-bottom: 8px; }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      top: 68px;
+      right: 18px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--primary);
+      color: #fff;
+      padding: 11px 18px;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 220px;
+      max-width: 340px;
+      animation: slideIn .25s ease;
+      pointer-events: auto;
+    }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error   { border-left: 4px solid var(--accent); }
+    .toast.info    { border-left: 4px solid #2d9cdb; }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(40px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to   { opacity: 0; transform: translateX(30px); }
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 14px 0;
+    }
+
+    /* ── OR separator ── */
+    .or-sep {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      position: relative;
+      margin: 14px 0;
+    }
+    .or-sep::before, .or-sep::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: calc(50% - 22px);
+      height: 1px;
+      background: var(--border);
+    }
+    .or-sep::before { left: 0; }
+    .or-sep::after  { right: 0; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+    .page-btn {
+      padding: 5px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color .2s, color .2s;
+    }
+    .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Misc ── */
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .mt-8 { margin-top: 8px; }
+    .mt-14 { margin-top: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="topbar">
+  <h1>🎫 Cupones <span>Admin</span></h1>
+  <div id="pin-area">
+    <input type="password" id="pin-input" placeholder="Admin PIN" maxlength="20"
+           onkeydown="if(event.key==='Enter') setPin()" />
+    <button onclick="setPin()">Ingresar</button>
+    <span id="pin-status" class="locked">🔒 Sin PIN</span>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<div id="app">
+
+  <!-- Event banner -->
+  <div id="event-banner">
+    <span>📅 Evento seleccionado:</span>
+    <strong id="banner-name">—</strong>
+    <button onclick="clearEvent()">✕ Cambiar</button>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <button class="tab-btn active" data-tab="eventos" onclick="switchTab('eventos')">📅 Eventos</button>
+    <button class="tab-btn disabled" data-tab="barmans" onclick="switchTab('barmans')">🍹 Barmans</button>
+    <button class="tab-btn disabled" data-tab="cupones" onclick="switchTab('cupones')">🎟 Cupones</button>
+    <button class="tab-btn disabled" data-tab="monitor" onclick="switchTab('monitor')">📊 Monitor</button>
+  </div>
+
+  <!-- ═══════════════════ TAB: EVENTOS ═══════════════════ -->
+  <div id="panel-eventos" class="panel active">
+    <div class="card">
+      <h2>Eventos existentes</h2>
+      <div id="events-list"><div class="empty"><div class="empty-icon">📭</div>Cargando eventos…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Crear nuevo evento</h2>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Nombre del evento</label>
+          <input type="text" id="ev-name" placeholder="Ej: Fiesta de Verano 2026" />
+        </div>
+        <div class="form-row">
+          <label>Fecha</label>
+          <input type="date" id="ev-date" />
+        </div>
+      </div>
+      <div class="form-row" style="max-width:260px">
+        <label>Admin PIN (confirmación)</label>
+        <input type="password" id="ev-pin" placeholder="PIN de administrador" />
+      </div>
+      <button class="btn btn-primary" id="btn-create-event" onclick="createEvent()">
+        ＋ Crear evento
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: BARMANS ═══════════════════ -->
+  <div id="panel-barmans" class="panel">
+    <div class="card">
+      <div class="flex-between">
+        <h2 style="margin-bottom:0;border:none;padding:0">Barmans del evento</h2>
+        <span class="barman-count" id="barman-count-label">— barmans registrados</span>
+      </div>
+      <div style="margin-top:14px" id="barmans-list">
+        <div class="empty"><div class="empty-icon">🍹</div>Selecciona un evento primero</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Agregar barman</h2>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Nombre</label>
+          <input type="text" id="bm-name" placeholder="Ej: Carlos López" />
+        </div>
+        <div class="form-row">
+          <label>PIN (4-6 dígitos)</label>
+          <input type="text" id="bm-pin" placeholder="Ej: 1234" maxlength="6" pattern="\d{4,6}" />
+        </div>
+      </div>
+      <div class="form-row" style="max-width:260px">
+        <label>Admin PIN (confirmación)</label>
+        <input type="password" id="bm-admin-pin" placeholder="PIN de administrador" />
+      </div>
+      <button class="btn btn-primary" id="btn-create-barman" onclick="createBarman()">
+        ＋ Agregar barman
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: CUPONES ═══════════════════ -->
+  <div id="panel-cupones" class="panel">
+    <!-- Stats -->
+    <div class="stats-grid" id="coupon-stats">
+      <div class="stat-card"><div class="stat-num" id="st-total">—</div><div class="stat-label">Total</div></div>
+      <div class="stat-card info"><div class="stat-num" id="st-sent">—</div><div class="stat-label">Enviados</div></div>
+      <div class="stat-card success"><div class="stat-num" id="st-redeemed">—</div><div class="stat-label">Canjeados</div></div>
+      <div class="stat-card accent"><div class="stat-num" id="st-pending">—</div><div class="stat-label">Pendientes</div></div>
+    </div>
+
+    <!-- Generate -->
+    <div class="card">
+      <h2>Generar cupones</h2>
+
+      <div class="generate-tabs">
+        <button class="gen-tab active" id="gentab-bulk" onclick="switchGenTab('bulk')">📋 Lista</button>
+        <button class="gen-tab" id="gentab-anon" onclick="switchGenTab('anon')">🔢 Anónimos</button>
+      </div>
+
+      <!-- Bulk -->
+      <div id="gen-bulk">
+        <div class="form-row">
+          <label>Una línea por cupón — formato: email,nombre</label>
+          <textarea id="gen-bulk-text" placeholder="juan@mail.com,Juan García&#10;maria@mail.com,María Torres&#10;pedro@mail.com,Pedro Ruiz"></textarea>
+        </div>
+      </div>
+
+      <!-- Anon -->
+      <div id="gen-anon" style="display:none">
+        <div class="form-row" style="max-width:200px">
+          <label>Cantidad de cupones</label>
+          <input type="number" id="gen-anon-count" placeholder="Ej: 50" min="1" max="500" />
+        </div>
+      </div>
+
+      <div class="form-row" style="max-width:260px;margin-top:4px">
+        <label>Admin PIN (confirmación)</label>
+        <input type="password" id="gen-pin" placeholder="PIN de administrador" />
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+        <button class="btn btn-primary" id="btn-gen-coupons" onclick="generateCoupons()">
+          🎟 Generar
+        </button>
+        <button class="btn btn-secondary" id="btn-send-all" onclick="sendAllEmails()">
+          📧 Enviar todos los emails
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:14px">
+        <h2 style="margin-bottom:0;border:none;padding:0">Lista de cupones</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="tbl-pin" placeholder="PIN para ver" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.82rem;width:140px" />
+          <button class="btn btn-outline btn-sm" onclick="loadCoupons()">🔄 Cargar</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="coupon-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Titular</th>
+              <th>Email</th>
+              <th>Barman</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="coupon-tbody">
+            <tr><td colspan="6" class="empty">Ingresa el PIN y presiona Cargar</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="coupon-pagination"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TAB: MONITOR ═══════════════════ -->
+  <div id="panel-monitor" class="panel">
+    <div class="refresh-note">
+      <div class="pulse"></div>
+      Auto-actualización cada 10 segundos
+    </div>
+
+    <!-- Monitor stats -->
+    <div class="stats-grid" id="monitor-stats">
+      <div class="stat-card"><div class="stat-num" id="mn-total">—</div><div class="stat-label">Total</div></div>
+      <div class="stat-card success"><div class="stat-num" id="mn-redeemed">—</div><div class="stat-label">Canjeados</div></div>
+      <div class="stat-card accent"><div class="stat-num" id="mn-pct">—</div><div class="stat-label">% Canjeado</div></div>
+      <div class="stat-card info"><div class="stat-num" id="mn-remaining">—</div><div class="stat-label">Restantes</div></div>
+    </div>
+
+    <!-- Progress -->
+    <div class="card">
+      <h3>Progreso de canje</h3>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="monitor-progress" style="width:0%"></div>
+      </div>
+      <div class="progress-label"><span id="monitor-pct-label">0%</span> canjeados</div>
+    </div>
+
+    <div class="monitor-grid">
+      <!-- Recently redeemed -->
+      <div class="card" style="margin-bottom:0">
+        <h3>Últimos 20 canjeados</h3>
+        <div id="recent-list" class="recent-list mt-8">
+          <div class="empty"><div class="empty-icon">⏳</div>Sin canjes aún</div>
+        </div>
+      </div>
+
+      <!-- Barman breakdown -->
+      <div class="card" style="margin-bottom:0">
+        <h3>Por barman</h3>
+        <div id="barman-breakdown" class="mt-8"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const state = {
+  adminPin: sessionStorage.getItem('admin_pin') || '',
+  selectedEvent: null,
+  coupons: [],
+  currentPage: 1,
+  pageSize: 20,
+  genMode: 'bulk',
+  monitorInterval: null,
+};
+
+const API = '';   // base URL — same origin; change if backend differs
+
+// ═══════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'fadeOut .3s ease forwards';
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════
+//  PIN
+// ═══════════════════════════════════════════════
+function setPin() {
+  const val = document.getElementById('pin-input').value.trim();
+  if (!val) { toast('Escribe un PIN primero', 'error'); return; }
+  state.adminPin = val;
+  sessionStorage.setItem('admin_pin', val);
+  updatePinStatus();
+  toast('PIN guardado ✔', 'success');
+  // auto-fill pin fields
+  document.querySelectorAll('input[type=password][id$="-pin"], input[type=password][id$="-admin-pin"]')
+    .forEach(el => { if (!el.value) el.value = val; });
+  document.getElementById('tbl-pin').value = val;
+}
+
+function updatePinStatus() {
+  const el = document.getElementById('pin-status');
+  if (state.adminPin) {
+    el.textContent = '🔓 Admin';
+    el.className = 'unlocked';
+    document.getElementById('pin-input').value = state.adminPin;
+  } else {
+    el.textContent = '🔒 Sin PIN';
+    el.className = 'locked';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  FETCH HELPER
+// ═══════════════════════════════════════════════
+async function apiFetch(path, opts = {}) {
+  try {
+    const res = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      ...opts,
+    });
+    if (!res.ok) {
+      let errMsg = `Error ${res.status}`;
+      try { const j = await res.json(); errMsg = j.detail || j.message || errMsg; } catch {}
+      throw new Error(errMsg);
+    }
+    // 204 no content
+    if (res.status === 204) return null;
+    return await res.json();
+  } catch (e) {
+    throw e;
+  }
+}
+
+function btnLoading(id, loading, label = 'Cargando…') {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  if (loading) {
+    btn.dataset.orig = btn.innerHTML;
+    btn.innerHTML = `<span class="spinner"></span> ${label}`;
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn.dataset.orig || btn.innerHTML;
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById(`panel-${tab}`).classList.add('active');
+
+  if (tab === 'barmans' && state.selectedEvent) loadBarmans();
+  if (tab === 'cupones' && state.selectedEvent) { loadCouponStats(); loadCoupons(); }
+  if (tab === 'monitor' && state.selectedEvent) {
+    loadMonitor();
+    clearInterval(state.monitorInterval);
+    state.monitorInterval = setInterval(loadMonitor, 10000);
+  } else {
+    clearInterval(state.monitorInterval);
+  }
+  if (tab === 'eventos') loadEvents();
+}
+
+function enableEventTabs() {
+  ['barmans','cupones','monitor'].forEach(t => {
+    document.querySelector(`[data-tab="${t}"]`).classList.remove('disabled');
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  EVENT BANNER
+// ═══════════════════════════════════════════════
+function selectEvent(ev) {
+  state.selectedEvent = ev;
+  document.getElementById('banner-name').textContent = `${ev.name} (${formatDate(ev.date)})`;
+  document.getElementById('event-banner').classList.add('visible');
+  enableEventTabs();
+  // highlight list
+  document.querySelectorAll('.event-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id == ev.id);
+  });
+  toast(`Evento "${ev.name}" seleccionado`, 'success');
+}
+
+function clearEvent() {
+  state.selectedEvent = null;
+  document.getElementById('event-banner').classList.remove('visible');
+  ['barmans','cupones','monitor'].forEach(t =>
+    document.querySelector(`[data-tab="${t}"]`).classList.add('disabled'));
+  switchTab('eventos');
+  document.querySelectorAll('.event-item').forEach(el => el.classList.remove('selected'));
+}
+
+// ═══════════════════════════════════════════════
+//  EVENTOS
+// ═══════════════════════════════════════════════
+async function loadEvents() {
+  const list = document.getElementById('events-list');
+  list.innerHTML = `<div class="empty"><span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></span> Cargando…</div>`;
+  try {
+    const events = await apiFetch('/api/events');
+    if (!events || events.length === 0) {
+      list.innerHTML = `<div class="empty"><div class="empty-icon">📭</div>No hay eventos aún. ¡Crea el primero!</div>`;
+      return;
+    }
+    list.innerHTML = events.map(ev => `
+      <div class="event-item${state.selectedEvent?.id === ev.id ? ' selected':''}"
+           data-id="${ev.id}" onclick="selectEvent(${JSON.stringify(ev).replace(/"/g,'&quot;')})">
+        <div class="event-icon">🎉</div>
+        <div>
+          <div class="event-name">${esc(ev.name)}</div>
+          <div class="event-date">${formatDate(ev.date)}</div>
+        </div>
+        <span class="select-badge">${state.selectedEvent?.id === ev.id ? '✔ Seleccionado' : 'Seleccionar →'}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function createEvent() {
+  const name   = document.getElementById('ev-name').value.trim();
+  const date   = document.getElementById('ev-date').value;
+  const pin    = document.getElementById('ev-pin').value || state.adminPin;
+  if (!name) { toast('El nombre es requerido', 'error'); return; }
+  if (!pin)  { toast('Ingresa el PIN de administrador', 'error'); return; }
+  btnLoading('btn-create-event', true, 'Creando…');
+  try {
+    const ev = await apiFetch('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({ name, date: date || null, admin_pin: pin }),
+    });
+    toast(`Evento "${ev.name}" creado`, 'success');
+    document.getElementById('ev-name').value = '';
+    document.getElementById('ev-date').value = '';
+    loadEvents();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btnLoading('btn-create-event', false);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  BARMANS
+// ═══════════════════════════════════════════════
+async function loadBarmans() {
+  if (!state.selectedEvent) return;
+  const list = document.getElementById('barmans-list');
+  list.innerHTML = `<div class="empty"><span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></span></div>`;
+  try {
+    const barmans = await apiFetch(`/api/events/${state.selectedEvent.id}/barmans`);
+    document.getElementById('barman-count-label').textContent =
+      `${barmans.length} barman${barmans.length !== 1 ? 's' : ''} registrado${barmans.length !== 1 ? 's' : ''}`;
+    if (!barmans || barmans.length === 0) {
+      list.innerHTML = `<div class="empty"><div class="empty-icon">🍹</div>Sin barmans aún</div>`;
+      return;
+    }
+    list.innerHTML = barmans.map(b => `
+      <div class="barman-item">
+        <div class="barman-avatar">${esc(b.name[0].toUpperCase())}</div>
+        <div>
+          <div class="barman-name">${esc(b.name)}</div>
+          <div class="barman-pin">PIN: ${'•'.repeat((b.pin||'').length || 4)}</div>
+        </div>
+        ${b.coupon_count != null ? `<span class="badge badge-info" style="margin-left:auto">${b.coupon_count} canjes</span>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function createBarman() {
+  const name    = document.getElementById('bm-name').value.trim();
+  const pin     = document.getElementById('bm-pin').value.trim();
+  const adminPn = document.getElementById('bm-admin-pin').value || state.adminPin;
+  if (!state.selectedEvent) { toast('Selecciona un evento primero', 'error'); return; }
+  if (!name) { toast('El nombre es requerido', 'error'); return; }
+  if (!/^\d{4,6}$/.test(pin)) { toast('El PIN debe tener 4-6 dígitos', 'error'); return; }
+  if (!adminPn) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  btnLoading('btn-create-barman', true, 'Guardando…');
+  try {
+    await apiFetch('/api/barmans', {
+      method: 'POST',
+      body: JSON.stringify({ name, pin, event_id: state.selectedEvent.id, admin_pin: adminPn }),
+    });
+    toast(`Barman "${name}" agregado`, 'success');
+    document.getElementById('bm-name').value = '';
+    document.getElementById('bm-pin').value  = '';
+    loadBarmans();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btnLoading('btn-create-barman', false);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CUPONES — GENERATE MODE
+// ═══════════════════════════════════════════════
+function switchGenTab(mode) {
+  state.genMode = mode;
+  document.getElementById('gentab-bulk').classList.toggle('active', mode === 'bulk');
+  document.getElementById('gentab-anon').classList.toggle('active', mode === 'anon');
+  document.getElementById('gen-bulk').style.display = mode === 'bulk' ? '' : 'none';
+  document.getElementById('gen-anon').style.display = mode === 'anon' ? '' : 'none';
+}
+
+async function generateCoupons() {
+  if (!state.selectedEvent) { toast('Selecciona un evento primero', 'error'); return; }
+  const pin = document.getElementById('gen-pin').value || state.adminPin;
+  if (!pin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+
+  let payload = { event_id: state.selectedEvent.id, admin_pin: pin };
+
+  if (state.genMode === 'bulk') {
+    const raw = document.getElementById('gen-bulk-text').value.trim();
+    if (!raw) { toast('Escribe al menos una línea', 'error'); return; }
+    const entries = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+      const [email, ...nameParts] = line.split(',');
+      return { email: email.trim(), name: nameParts.join(',').trim() || null };
+    });
+    payload.coupons = entries;
+  } else {
+    const count = parseInt(document.getElementById('gen-anon-count').value);
+    if (!count || count < 1) { toast('Ingresa una cantidad válida', 'error'); return; }
+    payload.count = count;
+  }
+
+  btnLoading('btn-gen-coupons', true, 'Generando…');
+  try {
+    const res = await apiFetch('/api/coupons/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const n = res.created ?? res.count ?? (res.coupons?.length ?? '?');
+    toast(`${n} cupones generados`, 'success');
+    document.getElementById('gen-bulk-text').value = '';
+    document.getElementById('gen-anon-count').value = '';
+    loadCouponStats();
+    loadCoupons();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btnLoading('btn-gen-coupons', false);
+  }
+}
+
+async function sendAllEmails() {
+  if (!state.selectedEvent) { toast('Selecciona un evento primero', 'error'); return; }
+  const pin = document.getElementById('gen-pin').value || state.adminPin;
+  if (!pin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  if (!confirm('¿Enviar emails a todos los cupones pendientes?')) return;
+  btnLoading('btn-send-all', true, 'Enviando…');
+  try {
+    const res = await apiFetch('/api/coupons/send-all', {
+      method: 'POST',
+      body: JSON.stringify({ event_id: state.selectedEvent.id, admin_pin: pin }),
+    });
+    toast(`Emails enviados: ${res.sent ?? '✔'}`, 'success');
+    loadCouponStats();
+    loadCoupons();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btnLoading('btn-send-all', false);
+  }
+}
+
+async function sendSingleEmail(code) {
+  const pin = state.adminPin;
+  if (!pin) { toast('PIN no configurado', 'error'); return; }
+  const btn = document.getElementById(`send-btn-${code}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    await apiFetch(`/api/coupons/${code}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify({ admin_pin: pin }),
+    });
+    toast('Email enviado', 'success');
+    loadCoupons();
+  } catch (e) {
+    toast(e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Email'; }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CUPONES — STATS
+// ═══════════════════════════════════════════════
+async function loadCouponStats() {
+  if (!state.selectedEvent) return;
+  const pin = document.getElementById('tbl-pin').value || state.adminPin;
+  if (!pin) return;
+  try {
+    const coupons = await apiFetch(`/api/events/${state.selectedEvent.id}/coupons?admin_pin=${encodeURIComponent(pin)}`);
+    const total    = coupons.length;
+    const redeemed = coupons.filter(c => c.redeemed_at).length;
+    const sent     = coupons.filter(c => c.email_sent_at).length;
+    const pending  = total - redeemed;
+    document.getElementById('st-total').textContent    = total;
+    document.getElementById('st-sent').textContent     = sent;
+    document.getElementById('st-redeemed').textContent = redeemed;
+    document.getElementById('st-pending').textContent  = pending;
+    state.coupons = coupons;
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════
+//  CUPONES — TABLE
+// ═══════════════════════════════════════════════
+async function loadCoupons() {
+  if (!state.selectedEvent) return;
+  const pin = document.getElementById('tbl-pin').value || state.adminPin;
+  if (!pin) { toast('Ingresa el PIN para ver cupones', 'error'); return; }
+
+  const tbody = document.getElementById('coupon-tbody');
+  tbody.innerHTML = `<tr><td colspan="6" class="empty"><span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></span> Cargando…</td></tr>`;
+  try {
+    const coupons = await apiFetch(`/api/events/${state.selectedEvent.id}/coupons?admin_pin=${encodeURIComponent(pin)}`);
+    state.coupons = coupons;
+    // update stats silently
+    const total    = coupons.length;
+    const redeemed = coupons.filter(c => c.redeemed_at).length;
+    const sent     = coupons.filter(c => c.email_sent_at).length;
+    document.getElementById('st-total').textContent    = total;
+    document.getElementById('st-sent').textContent     = sent;
+    document.getElementById('st-redeemed').textContent = redeemed;
+    document.getElementById('st-pending').textContent  = total - redeemed;
+    renderCouponTable();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">❌ ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderCouponTable() {
+  const coupons = state.coupons;
+  const tbody   = document.getElementById('coupon-tbody');
+  const pg      = document.getElementById('coupon-pagination');
+
+  if (!coupons.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin cupones</td></tr>`;
+    pg.innerHTML = '';
+    return;
+  }
+
+  const total  = coupons.length;
+  const pages  = Math.ceil(total / state.pageSize);
+  const p      = Math.min(state.currentPage, pages);
+  const slice  = coupons.slice((p-1)*state.pageSize, p*state.pageSize);
+
+  tbody.innerHTML = slice.map(c => {
+    let badge;
+    if (c.redeemed_at)    badge = `<span class="badge badge-success">Canjeado</span>`;
+    else if (c.email_sent_at) badge = `<span class="badge badge-info">Email enviado</span>`;
+    else                  badge = `<span class="badge badge-neutral">Pendiente</span>`;
+
+    const canSend = c.email && !c.email_sent_at && !c.redeemed_at;
+    const action  = canSend
+      ? `<button class="btn btn-outline btn-sm" id="send-btn-${esc(c.code)}" onclick="sendSingleEmail('${esc(c.code)}')">📧 Email</button>`
+      : `<span style="color:var(--text-muted);font-size:.78rem">—</span>`;
+
+    return `
+      <tr>
+        <td><span class="code-chip">${esc(c.code)}</span></td>
+        <td>${esc(c.holder_name || '—')}</td>
+        <td style="font-size:.8rem;color:var(--text-muted)">${esc(c.email || '—')}</td>
+        <td>${esc(c.barman_name || '—')}</td>
+        <td>${badge}</td>
+        <td>${action}</td>
+      </tr>`;
+  }).join('');
+
+  // Pagination
+  pg.innerHTML = '';
+  if (pages <= 1) return;
+
+  const addPageBtn = (label, page, active = false, disabled = false) => {
+    const btn = document.createElement('button');
+    btn.className = `page-btn${active ? ' active' : ''}`;
+    btn.textContent = label;
+    btn.disabled = disabled;
+    btn.onclick = () => { state.currentPage = page; renderCouponTable(); };
+    pg.appendChild(btn);
+  };
+
+  addPageBtn('‹', p-1, false, p === 1);
+  const start = Math.max(1, p-2), end = Math.min(pages, p+2);
+  for (let i = start; i <= end; i++) addPageBtn(i, i, i === p);
+  addPageBtn('›', p+1, false, p === pages);
+}
+
+// ═══════════════════════════════════════════════
+//  MONITOR
+// ═══════════════════════════════════════════════
+async function loadMonitor() {
+  if (!state.selectedEvent) return;
+  const pin = state.adminPin;
+  if (!pin) return;
+  try {
+    const coupons = await apiFetch(`/api/events/${state.selectedEvent.id}/coupons?admin_pin=${encodeURIComponent(pin)}`);
+    const total    = coupons.length;
+    const redeemed = coupons.filter(c => c.redeemed_at).length;
+    const pct      = total ? Math.round(redeemed/total*100) : 0;
+    const remaining = total - redeemed;
+
+    document.getElementById('mn-total').textContent     = total;
+    document.getElementById('mn-redeemed').textContent  = redeemed;
+    document.getElementById('mn-pct').textContent       = pct + '%';
+    document.getElementById('mn-remaining').textContent = remaining;
+    document.getElementById('monitor-progress').style.width = pct + '%';
+    document.getElementById('monitor-pct-label').textContent = pct + '%';
+
+    // Recent redeemed
+    const recent = coupons
+      .filter(c => c.redeemed_at)
+      .sort((a,b) => new Date(b.redeemed_at) - new Date(a.redeemed_at))
+      .slice(0, 20);
+
+    const rl = document.getElementById('recent-list');
+    if (!recent.length) {
+      rl.innerHTML = `<div class="empty"><div class="empty-icon">⏳</div>Sin canjes aún</div>`;
+    } else {
+      rl.innerHTML = recent.map(c => `
+        <div class="recent-item">
+          <span class="ri-code">${esc(c.code)}</span>
+          <span>${esc(c.holder_name || 'Anónimo')}</span>
+          <div class="ri-meta">
+            <div>${esc(c.barman_name || '—')}</div>
+            <div>${formatTime(c.redeemed_at)}</div>
+          </div>
+        </div>`).join('');
+    }
+
+    // Barman breakdown
+    const bd = document.getElementById('barman-breakdown');
+    const byBarman = {};
+    coupons.filter(c => c.redeemed_at && c.barman_name).forEach(c => {
+      byBarman[c.barman_name] = (byBarman[c.barman_name] || 0) + 1;
+    });
+    const entries = Object.entries(byBarman).sort((a,b) => b[1]-a[1]);
+    const maxVal  = entries[0]?.[1] || 1;
+    if (!entries.length) {
+      bd.innerHTML = `<div class="empty" style="padding:16px"><div class="empty-icon">🍹</div>Sin datos aún</div>`;
+    } else {
+      bd.innerHTML = entries.map(([name, count]) => `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:3px">
+            <span>${esc(name)}</span><strong>${count}</strong>
+          </div>
+          <div style="background:#ececec;border-radius:6px;height:10px;overflow:hidden">
+            <div style="height:100%;width:${Math.round(count/maxVal*100)}%;background:var(--success);border-radius:6px;transition:width .5s"></div>
+          </div>
+        </div>`).join('');
+    }
+  } catch (e) {
+    console.warn('Monitor error:', e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  try {
+    return new Date(d).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+  } catch { return d; }
+}
+
+function formatTime(dt) {
+  if (!dt) return '—';
+  try {
+    return new Date(dt).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+  } catch { return dt; }
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+(function init() {
+  updatePinStatus();
+  if (state.adminPin) {
+    document.querySelectorAll('input[type=password]').forEach(el => { el.value = state.adminPin; });
+  }
+  loadEvents();
+})();
+</script>
+</body>
+</html>

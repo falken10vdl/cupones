@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Barman" />
+  <title>Barman – Cupones</title>
+  <link rel="manifest" href="/barman/manifest.json" />
+
+  <!-- html5-qrcode CDN -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1a1a2e;
+      --card:     #16213e;
+      --accent:   #e94560;
+      --success:  #4ecca3;
+      --warning:  #f39c12;
+      --danger:   #e94560;
+      --text:     #eeeeee;
+      --muted:    #8892b0;
+      --radius:   14px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100dvh;
+    }
+
+    /* ── App shell ── */
+    #app {
+      width: 100%;
+      max-width: 500px;
+      min-height: 100dvh;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Utility ── */
+    .hidden { display: none !important; }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:active  { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    input {
+      background: #0f3460;
+      border: 2px solid #0f3460;
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: 0.85rem 1rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .field { margin-bottom: 1.2rem; }
+
+    /* ── LOGIN SCREEN ── */
+    #screen-login {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .login-logo .logo-icon {
+      font-size: 3.5rem;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    .login-logo h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+    .login-logo p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.3rem;
+    }
+
+    .login-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.8rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    #login-btn {
+      width: 100%;
+      padding: 1rem;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.1rem;
+      margin-top: 0.5rem;
+    }
+
+    #login-error {
+      color: var(--danger);
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 0.8rem;
+      min-height: 1.2em;
+    }
+
+    /* ── MAIN SCREEN ── */
+    #screen-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    /* Header */
+    .main-header {
+      background: var(--card);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #0f3460;
+    }
+    .header-info h2 {
+      font-size: 1.1rem;
+      color: var(--text);
+      margin-bottom: 0.1rem;
+    }
+    .header-info p {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    #status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.4s;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    /* Main content area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1.5rem;
+      gap: 1.5rem;
+    }
+
+    /* Scan button */
+    #btn-scan {
+      width: 100%;
+      padding: 2rem 1rem;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.4rem;
+      border-radius: 20px;
+      box-shadow: 0 6px 24px rgba(233,69,96,0.45);
+    }
+    #btn-scan:active {
+      box-shadow: 0 2px 10px rgba(233,69,96,0.3);
+    }
+
+    /* Stats card */
+    .stats-card {
+      width: 100%;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .stat-item {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--success);
+      line-height: 1;
+    }
+    .stat-value.pending { color: var(--warning); }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 0.3rem;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+
+    #btn-sync {
+      width: 100%;
+      padding: 0.9rem;
+      background: var(--warning);
+      color: #1a1a2e;
+      font-size: 1rem;
+      display: none; /* shown by JS when pending > 0 */
+    }
+
+    #btn-refresh {
+      width: 100%;
+      padding: 0.9rem;
+      background: #0f3460;
+      color: var(--text);
+      font-size: 1rem;
+      border: 1px solid #1a4a8a;
+    }
+
+    #btn-logout {
+      width: 100%;
+      padding: 0.7rem;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border: 1px solid #333;
+    }
+
+    /* ── SCANNER OVERLAY ── */
+    #overlay-scanner {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+    }
+
+    .scanner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    #btn-close-scanner {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      border-radius: 8px;
+    }
+
+    #qr-reader {
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Override html5-qrcode default styles for dark theme */
+    #qr-reader > * { border: none !important; }
+    #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+
+    .scanner-hint {
+      text-align: center;
+      padding: 1rem;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.85rem;
+      background: rgba(0,0,0,0.6);
+    }
+
+    /* ── RESULT OVERLAY ── */
+    #overlay-result {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    #result-box {
+      background: var(--card);
+      border-radius: 20px;
+      border: 3px solid var(--success);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 0 40px rgba(78,204,163,0.3);
+    }
+
+    #result-message {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--success);
+      line-height: 1.6;
+      white-space: pre-line;
+    }
+
+    #result-dismiss-hint {
+      margin-top: 1.5rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* ── Responsive tweaks ── */
+    @media (max-height: 650px) {
+      #btn-scan { padding: 1.4rem 1rem; font-size: 1.2rem; }
+      .stat-value { font-size: 1.8rem; }
+      .main-content { padding: 1.2rem 1.2rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════════════════════════════
+       LOGIN SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="screen-login" style="display:none">
+    <div class="login-logo">
+      <span class="logo-icon">🍹</span>
+      <h1>BARMAN</h1>
+      <p>Sistema de cupones</p>
+    </div>
+
+    <div class="login-card">
+      <div class="field">
+        <label for="login-event-id">ID de Evento</label>
+        <input
+          id="login-event-id"
+          type="number"
+          inputmode="numeric"
+          placeholder="Ej: 1001"
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="field">
+        <label for="login-pin">PIN (4–6 dígitos)</label>
+        <input
+          id="login-pin"
+          type="password"
+          inputmode="numeric"
+          placeholder="••••"
+          maxlength="6"
+          autocomplete="current-password"
+        />
+      </div>
+
+      <button id="login-btn" onclick="doLogin()">ENTRAR</button>
+      <p id="login-error" role="alert"></p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       MAIN SCREEN
+  ══════════════════════════════════════════════ -->
+  <div id="screen-main" style="display:none">
+
+    <!-- Header -->
+    <header class="main-header">
+      <div class="header-info">
+        <h2 id="barman-name">Barman</h2>
+        <p id="event-name">Evento</p>
+      </div>
+      <div class="status-indicator">
+        <span id="status-dot"></span>
+        <span id="status-label">…</span>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="main-content">
+
+      <!-- Big scan button -->
+      <button id="btn-scan" onclick="openScanner()">
+        📷&nbsp; ESCANEAR CUPÓN
+      </button>
+
+      <!-- Stats -->
+      <div class="stats-card">
+        <div class="stat-item">
+          <div id="stat-processed" class="stat-value">0</div>
+          <div class="stat-label">Procesados hoy</div>
+        </div>
+        <div class="stat-item">
+          <div id="stat-pending" class="stat-value pending">0</div>
+          <div class="stat-label">Pendientes sync</div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-buttons">
+        <button id="btn-sync" onclick="doSync()">⬆️&nbsp; SINCRONIZAR</button>
+        <button id="btn-refresh" onclick="refreshCouponCache()">🔄&nbsp; ACTUALIZAR CUPONES</button>
+        <button id="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCANNER OVERLAY
+  ══════════════════════════════════════════════ -->
+  <div id="overlay-scanner" style="display:none">
+    <div class="scanner-header">
+      <span>Escanear cupón QR</span>
+      <button id="btn-close-scanner" onclick="closeScanner()">✕ Cerrar</button>
+    </div>
+
+    <div id="qr-reader"></div>
+
+    <p class="scanner-hint">Apunta la cámara al código QR del cliente</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       RESULT OVERLAY
+  ══════════════════════════════════════════════ -->
+  <div id="overlay-result" style="display:none" onclick="dismissResult()">
+    <div id="result-box">
+      <p id="result-message"></p>
+      <p id="result-dismiss-hint">Toca para cerrar</p>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- JS: load order matters: offline → scanner → app -->
+<script src="/barman/offline.js"></script>
+<script src="/barman/scanner.js"></script>
+<script src="/barman/app.js"></script>
+
+<script>
+  // Register Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/barman/sw.js', { scope: '/barman/' })
+        .then(reg => console.log('[SW] Registered, scope:', reg.scope))
+        .catch(err => console.error('[SW] Registration failed:', err));
+    });
+  }
+</script>
+</body>
+</html>

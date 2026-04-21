@@ -1,0 +1,27 @@
+{
+  "name": "Barman - Cupones",
+  "short_name": "Barman",
+  "description": "Escaneo de cupones QR para barmans en eventos",
+  "start_url": "/barman/",
+  "scope": "/barman/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1a1a2e",
+  "background_color": "#16213e",
+  "lang": "es",
+  "icons": [
+    /* TODO: Replace with real icon files */
+    {
+      "src": "/barman/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/barman/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+# ── Entorno ────────────────────────────────────────
+# Variables de entorno con credenciales reales
+.env
+
+# ── Base de datos ───────────────────────────────────
+# Archivo SQLite generado automáticamente al iniciar el servidor
+server/coupons.db
+coupons.db
+
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Entorno virtual ─────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Logs del servidor ───────────────────────────────
+stdout.log
+stderr.log
+*.log
+
+# ── IDEs y editores ─────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

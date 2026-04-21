@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+qrcode[pil]
+python-multipart
+python-dotenv
