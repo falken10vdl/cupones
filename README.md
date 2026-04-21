@@ -34,56 +34,51 @@ El servidor sirve tanto la API REST como los archivos estáticos del panel admin
 
 | Requisito | Versión mínima | Notas |
 |-----------|----------------|-------|
-| Windows | 10 / 11 (64-bit) | O cualquier distro Linux moderna |
-| Python | 3.10+ | Incluido en la mayoría de distros Linux; instalador en python.org para Windows |
-| Git | 2.x | Preinstalado en Linux; instalador en git-scm.com para Windows |
+| Sistema operativo | Windows 10/11, macOS 12+, o Linux | |
+| Python | 3.10+ | Preinstalado en macOS/Linux; instalador en python.org para Windows |
+| Git | 2.x | Preinstalado en macOS/Linux; instalador en git-scm.com para Windows |
 | Cuenta Gmail | — | Con [contraseña de aplicación](https://support.google.com/accounts/answer/185833) habilitada |
 
 > **Nota Gmail:** La contraseña de aplicación es un código de 16 caracteres que Google genera específicamente para apps de terceros. No uses tu contraseña normal de Google.
 
 ---
 
-## 🖥️ Instalación en Windows (paso a paso)
+## � Instalación
+
+Elige tu sistema operativo:
+
+<details>
+<summary>🖥️ Windows 10 / 11</summary>
 
 ### 1. Instalar Python
 
 1. Ve a **https://www.python.org/downloads/** y descarga el instalador de Python 3.10 o superior.
 2. Ejecuta el instalador. **Importante:** marca la opción **"Add Python to PATH"** antes de pulsar *Install Now*.
-3. Verifica la instalación abriendo **PowerShell** o **Símbolo del sistema (cmd)** y ejecutando:
+3. Verifica la instalación abriendo **PowerShell** o **Símbolo del sistema (cmd)**:
 
 ```cmd
 python --version
 pip --version
 ```
 
-Ambos comandos deben mostrar un número de versión.
-
----
-
 ### 2. Instalar Git
 
 1. Ve a **https://git-scm.com/download/win** y descarga el instalador.
-2. Ejecuta el instalador; puedes dejar todas las opciones por defecto.
-3. Verifica la instalación:
+2. Ejecuta el instalador con las opciones por defecto.
+3. Verifica:
 
 ```cmd
 git --version
 ```
 
----
-
 ### 3. Clonar el repositorio
-
-Abre **PowerShell** o **cmd**, navega a la carpeta donde quieras guardar el proyecto y ejecuta:
 
 ```cmd
 git clone https://github.com/falken10vdl/cupones.git
 cd cupones
 ```
 
----
-
-### 4. Crear un entorno virtual (recomendado)
+### 4. Crear un entorno virtual
 
 ```cmd
 cd server
@@ -91,19 +86,13 @@ python -m venv venv
 venv\Scripts\activate
 ```
 
-Tras activar el entorno verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
-
----
+Verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
 
 ### 5. Instalar dependencias
-
-Con el entorno virtual activo:
 
 ```cmd
 pip install -r requirements.txt
 ```
-
----
 
 ### 6. Configurar el entorno
 
@@ -111,9 +100,7 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Abre `.env` con el Bloc de notas o cualquier editor de texto y completa los valores (ver sección [Configuración del .env](#️-configuración-del-env) más abajo).
-
----
+Abre `.env` con el Bloc de notas y completa los valores (ver [Configuración del .env](#️-configuración-del-env)).
 
 ### 7. Iniciar el servidor principal
 
@@ -121,23 +108,17 @@ Abre `.env` con el Bloc de notas o cualquier editor de texto y completa los valo
 python app.py
 ```
 
-El servidor arranca en `http://localhost:8000` con recarga automática en modo desarrollo.
-
-> **Firewall de Windows:** la primera vez puede aparecer un aviso del Firewall de Windows Defender. Pulsa *Permitir acceso* para que los móviles de la misma red puedan conectarse a la app de barman.
+> **Firewall de Windows:** la primera vez pulsa *Permitir acceso* para que los móviles de la red puedan conectarse.
 
 ### 8. (Opcional) Iniciar la página de bienvenida
 
-Abre otra ventana de **cmd** o **PowerShell**, activa de nuevo el entorno virtual y ejecuta:
+Abre otra ventana de cmd/PowerShell:
 
 ```cmd
 cd server
 venv\Scripts\activate
 python landing.py
 ```
-
-Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local del servidor** (para que los barmans sepan a qué dirección conectarse) y renderiza esta documentación en HTML.
-
----
 
 ### 9. Acceder a las interfaces
 
@@ -146,19 +127,14 @@ Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local de
 | **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
 | Panel de administración | http://localhost:8000/admin/ |
 | App barman (PWA) | http://localhost:8000/barman/ |
-| Documentación API automática | http://localhost:8000/docs |
+| Documentación API | http://localhost:8000/docs |
 
-Para que los barmans accedan desde su móvil, usa la **IP local** del ordenador en lugar de `localhost`. Puedes ver tu IP local con:
+Para acceso desde móviles, busca tu IP local con `ipconfig` (línea **Dirección IPv4**) y comparte `http://<tu-ip>:8000/barman/`.
 
-```cmd
-ipconfig
-```
+</details>
 
-Busca la línea **Dirección IPv4** (p. ej. `192.168.1.50`) y pide a los barmans que abran `http://192.168.1.50:8000/barman/`.
-
----
-
-## 🐧 Instalación en Linux (paso a paso)
+<details>
+<summary>🐧 Linux (Ubuntu, Fedora, Arch…)</summary>
 
 ### 1. Instalar dependencias del sistema
 
@@ -181,14 +157,12 @@ sudo dnf install -y python3 python3-pip git
 sudo pacman -S python python-pip git
 ```
 
-Verifica la instalación:
+Verifica:
 
 ```bash
 python3 --version
 git --version
 ```
-
----
 
 ### 2. Clonar el repositorio
 
@@ -197,9 +171,7 @@ git clone https://github.com/falken10vdl/cupones.git
 cd cupones
 ```
 
----
-
-### 3. Crear un entorno virtual (recomendado)
+### 3. Crear un entorno virtual
 
 ```bash
 cd server
@@ -207,30 +179,22 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-Tras activar el entorno verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
-
----
+Verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
 
 ### 4. Instalar dependencias
-
-Con el entorno virtual activo:
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
 ### 5. Configurar el entorno
 
 ```bash
 cp .env.example .env
-nano .env   # o usa el editor que prefieras
+nano .env   # o el editor que prefieras
 ```
 
-Completa los valores (ver sección [Configuración del .env](#️-configuración-del-env) más abajo).
-
----
+Completa los valores (ver [Configuración del .env](#️-configuración-del-env)).
 
 ### 6. Iniciar el servidor principal
 
@@ -238,21 +202,15 @@ Completa los valores (ver sección [Configuración del .env](#️-configuración
 python3 app.py
 ```
 
-El servidor arranca en `http://localhost:8000` con recarga automática en modo desarrollo.
-
 ### 7. (Opcional) Iniciar la página de bienvenida
 
-Abre otra terminal, activa el entorno virtual y ejecuta:
+Abre otra terminal:
 
 ```bash
 cd server
 source venv/bin/activate
 python3 landing.py
 ```
-
-Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local del servidor** y renderiza esta documentación en HTML.
-
----
 
 ### 8. Acceder a las interfaces
 
@@ -261,17 +219,118 @@ Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local de
 | **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
 | Panel de administración | http://localhost:8000/admin/ |
 | App barman (PWA) | http://localhost:8000/barman/ |
-| Documentación API automática | http://localhost:8000/docs |
+| Documentación API | http://localhost:8000/docs |
 
-Para que los barmans accedan desde su móvil, usa la **IP local** del servidor en lugar de `localhost`. Puedes verla con:
+Para acceso desde móviles, obtén tu IP local con:
 
 ```bash
 ip route get 1 | awk '{print $7; exit}'
-# o alternativamente:
+# o:
 hostname -I | awk '{print $1}'
 ```
 
-Pide a los barmans que abran `http://<tu-ip>:8000/barman/`.
+Comparte `http://<tu-ip>:8000/barman/` con los barmans.
+
+</details>
+
+<details>
+<summary>🍎 macOS (Monterey 12+)</summary>
+
+### 1. Instalar Homebrew (si no lo tienes)
+
+Abre **Terminal** y ejecuta:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Sigue las instrucciones en pantalla. Al terminar, ejecuta los comandos `eval` que Homebrew indique para añadirlo al PATH.
+
+### 2. Instalar Python y Git
+
+macOS incluye Git, pero se recomienda instalar versiones actualizadas via Homebrew:
+
+```bash
+brew install python git
+```
+
+Verifica:
+
+```bash
+python3 --version
+git --version
+```
+
+### 3. Clonar el repositorio
+
+```bash
+git clone https://github.com/falken10vdl/cupones.git
+cd cupones
+```
+
+### 4. Crear un entorno virtual
+
+```bash
+cd server
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
+
+### 5. Instalar dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+### 6. Configurar el entorno
+
+```bash
+cp .env.example .env
+nano .env   # o abre con: open -e .env
+```
+
+Completa los valores (ver [Configuración del .env](#️-configuración-del-env)).
+
+### 7. Iniciar el servidor principal
+
+```bash
+python3 app.py
+```
+
+> **Firewall de macOS:** si aparece un aviso de seguridad de red, pulsa *Permitir* para que los móviles de la red puedan conectarse.
+
+### 8. (Opcional) Iniciar la página de bienvenida
+
+Abre otra pestaña de Terminal:
+
+```bash
+cd server
+source venv/bin/activate
+python3 landing.py
+```
+
+### 9. Acceder a las interfaces
+
+| Interfaz | URL |
+|----------|-----|
+| **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
+| Panel de administración | http://localhost:8000/admin/ |
+| App barman (PWA) | http://localhost:8000/barman/ |
+| Documentación API | http://localhost:8000/docs |
+
+Para acceso desde móviles, obtén tu IP local con:
+
+```bash
+ipconfig getifaddr en0
+# Wi-Fi por cable (Ethernet):
+ipconfig getifaddr en1
+```
+
+Comparte `http://<tu-ip>:8000/barman/` con los barmans.
+
+</details>
 
 ---
 
