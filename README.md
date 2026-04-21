@@ -102,7 +102,7 @@ copy .env.example .env
 
 Abre `.env` con el Bloc de notas y completa los valores (ver [Configuración del .env](#️-configuración-del-env)).
 
-### 7. Iniciar el servidor principal
+### 7. Iniciar el servidor
 
 ```cmd
 python app.py
@@ -110,26 +110,16 @@ python app.py
 
 > **Firewall de Windows:** la primera vez pulsa *Permitir acceso* para que los móviles de la red puedan conectarse.
 
-### 8. (Opcional) Iniciar la página de bienvenida
-
-Abre otra ventana de cmd/PowerShell:
-
-```cmd
-cd server
-venv\Scripts\activate
-python landing.py
-```
-
-### 9. Acceder a las interfaces
+### 8. Acceder a las interfaces
 
 | Interfaz | URL |
 |----------|-----|
 | **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
-| Panel de administración | http://localhost:8000/admin/ |
-| App barman (PWA) | http://localhost:8000/barman/ |
-| Documentación API | http://localhost:8000/docs |
+| Panel de administración | http://localhost:8080/admin/ |
+| App barman (PWA) | http://localhost:8080/barman/ |
+| Documentación API | http://localhost:8080/docs |
 
-Para acceso desde móviles, busca tu IP local con `ipconfig` (línea **Dirección IPv4**) y comparte `http://<tu-ip>:8000/barman/`.
+Para acceso desde móviles, busca tu IP local con `ipconfig` (línea **Dirección IPv4**) y comparte `http://<tu-ip>:8080/barman/`.
 
 </details>
 
@@ -196,30 +186,20 @@ nano .env   # o el editor que prefieras
 
 Completa los valores (ver [Configuración del .env](#️-configuración-del-env)).
 
-### 6. Iniciar el servidor principal
+### 6. Iniciar el servidor
 
 ```bash
 python3 app.py
 ```
 
-### 7. (Opcional) Iniciar la página de bienvenida
-
-Abre otra terminal:
-
-```bash
-cd server
-source venv/bin/activate
-python3 landing.py
-```
-
-### 8. Acceder a las interfaces
+### 7. Acceder a las interfaces
 
 | Interfaz | URL |
 |----------|-----|
 | **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
-| Panel de administración | http://localhost:8000/admin/ |
-| App barman (PWA) | http://localhost:8000/barman/ |
-| Documentación API | http://localhost:8000/docs |
+| Panel de administración | http://localhost:8080/admin/ |
+| App barman (PWA) | http://localhost:8080/barman/ |
+| Documentación API | http://localhost:8080/docs |
 
 Para acceso desde móviles, obtén tu IP local con:
 
@@ -229,7 +209,7 @@ ip route get 1 | awk '{print $7; exit}'
 hostname -I | awk '{print $1}'
 ```
 
-Comparte `http://<tu-ip>:8000/barman/` con los barmans.
+Comparte `http://<tu-ip>:8080/barman/` con los barmans.
 
 </details>
 
@@ -301,24 +281,14 @@ python3 app.py
 
 > **Firewall de macOS:** si aparece un aviso de seguridad de red, pulsa *Permitir* para que los móviles de la red puedan conectarse.
 
-### 8. (Opcional) Iniciar la página de bienvenida
-
-Abre otra pestaña de Terminal:
-
-```bash
-cd server
-source venv/bin/activate
-python3 landing.py
-```
-
-### 9. Acceder a las interfaces
+### 8. Acceder a las interfaces
 
 | Interfaz | URL |
 |----------|-----|
 | **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
-| Panel de administración | http://localhost:8000/admin/ |
-| App barman (PWA) | http://localhost:8000/barman/ |
-| Documentación API | http://localhost:8000/docs |
+| Panel de administración | http://localhost:8080/admin/ |
+| App barman (PWA) | http://localhost:8080/barman/ |
+| Documentación API | http://localhost:8080/docs |
 
 Para acceso desde móviles, obtén tu IP local con:
 
@@ -328,7 +298,7 @@ ipconfig getifaddr en0
 ipconfig getifaddr en1
 ```
 
-Comparte `http://<tu-ip>:8000/barman/` con los barmans.
+Comparte `http://<tu-ip>:8080/barman/` con los barmans.
 
 </details>
 
@@ -360,7 +330,7 @@ ADMIN_PIN=1234
 
 ## 📖 Guía de uso rápido
 
-1. **Abrir el panel admin** → `http://localhost:8000/admin/` → ingresar el `ADMIN_PIN` en la barra superior.
+1. **Abrir el panel admin** → `http://localhost:8080/admin/` → ingresar el `ADMIN_PIN` en la barra superior.
 
 2. **Crear un evento** → pestaña *Eventos* → completar nombre y fecha → *Crear evento*.
 
@@ -372,7 +342,7 @@ ADMIN_PIN=1234
 
 5. **Enviar emails con QR** → botón *Enviar todos los emails* (solo para cupones con email asignado y no enviados aún).
 
-6. **Barmans: login en el móvil** → abrir `http://<ip-local>:8000/barman/` → ingresar ID de evento y PIN → opcionalmente instalar como PWA desde el menú del navegador.
+6. **Barmans: login en el móvil** → abrir `http://<ip-local>:8080/barman/` → ingresar ID de evento y PIN → opcionalmente instalar como PWA desde el menú del navegador.
 
 7. **Escanear QR** → botón *ESCANEAR CUPÓN* → apuntar la cámara al QR del cliente.
 
@@ -411,7 +381,7 @@ cupones/
 │   └── manifest.json       # Manifiesto PWA (nombre, iconos, colores, orientación)
 │
 ├── server/
-│   ├── app.py              # Servidor FastAPI: definición de todos los endpoints
+│   ├── app.py              # Servidor FastAPI: API + landing page (puerto 8080)
 │   ├── config.py           # Carga de variables de entorno (.env)
 │   ├── database.py         # Modelos SQLAlchemy y creación de tablas (SQLite)
 │   ├── coupon_utils.py     # Generación de códigos, firma HMAC y QR base64
@@ -443,9 +413,10 @@ cupones/
 | `POST` | `/api/sync` | Sincroniza canjes realizados offline | Barman PIN |
 | `POST` | `/api/barman/login` | Autenticación del barman | Barman PIN |
 | `GET` | `/api/barman/{id}/coupons` | Descarga los cupones asignados al barman (para caché offline) | Barman PIN (query param) |
-| `GET` | `/` | Redirección a `/admin/` | — |
+| `GET` | `/` | Página de bienvenida con IP del servidor y documentación | — |
+| `GET` | `/readme.md` | README en texto plano (usado por la landing) | — |
 
-> La documentación interactiva completa (Swagger UI) está disponible en `http://localhost:8000/docs`.
+> La documentación interactiva completa (Swagger UI) está disponible en `http://localhost:8080/docs`.
 
 ---
 
@@ -465,14 +436,14 @@ cupones/
 
 ```bash
 # Múltiples workers para mayor rendimiento
-uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn app:app --host 0.0.0.0 --port 8080 --workers 4
 ```
 
 ### Reverse proxy con HTTPS (ejemplo con Caddy)
 
 ```
 tudominio.com {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:8080
 }
 ```
 
