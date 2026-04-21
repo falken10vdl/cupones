@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
@@ -14,7 +15,14 @@ from database import SessionLocal, create_tables, Event, Barman, Coupon
 from coupon_utils import generate_code, sign_coupon, generate_qr_base64
 from email_service import send_coupon_email
 
-app = FastAPI(title="Coupon System")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    yield
+
+
+app = FastAPI(title="Coupon System", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,10 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def startup():
-    create_tables()
 
 
 def get_db():
