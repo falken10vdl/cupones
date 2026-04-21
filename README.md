@@ -34,9 +34,9 @@ El servidor sirve tanto la API REST como los archivos estáticos del panel admin
 
 | Requisito | Versión mínima | Notas |
 |-----------|----------------|-------|
-| Windows | 10 / 11 (64-bit) | |
-| Python | 3.10+ | Instalar desde python.org |
-| Git | 2.x | Instalar desde git-scm.com |
+| Windows | 10 / 11 (64-bit) | O cualquier distro Linux moderna |
+| Python | 3.10+ | Incluido en la mayoría de distros Linux; instalador en python.org para Windows |
+| Git | 2.x | Preinstalado en Linux; instalador en git-scm.com para Windows |
 | Cuenta Gmail | — | Con [contraseña de aplicación](https://support.google.com/accounts/answer/185833) habilitada |
 
 > **Nota Gmail:** La contraseña de aplicación es un código de 16 caracteres que Google genera específicamente para apps de terceros. No uses tu contraseña normal de Google.
@@ -155,6 +155,123 @@ ipconfig
 ```
 
 Busca la línea **Dirección IPv4** (p. ej. `192.168.1.50`) y pide a los barmans que abran `http://192.168.1.50:8000/barman/`.
+
+---
+
+## 🐧 Instalación en Linux (paso a paso)
+
+### 1. Instalar dependencias del sistema
+
+**Ubuntu / Debian:**
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv git
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install -y python3 python3-pip git
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S python python-pip git
+```
+
+Verifica la instalación:
+
+```bash
+python3 --version
+git --version
+```
+
+---
+
+### 2. Clonar el repositorio
+
+```bash
+git clone https://github.com/falken10vdl/cupones.git
+cd cupones
+```
+
+---
+
+### 3. Crear un entorno virtual (recomendado)
+
+```bash
+cd server
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Tras activar el entorno verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
+
+---
+
+### 4. Instalar dependencias
+
+Con el entorno virtual activo:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### 5. Configurar el entorno
+
+```bash
+cp .env.example .env
+nano .env   # o usa el editor que prefieras
+```
+
+Completa los valores (ver sección [Configuración del .env](#️-configuración-del-env) más abajo).
+
+---
+
+### 6. Iniciar el servidor principal
+
+```bash
+python3 app.py
+```
+
+El servidor arranca en `http://localhost:8000` con recarga automática en modo desarrollo.
+
+### 7. (Opcional) Iniciar la página de bienvenida
+
+Abre otra terminal, activa el entorno virtual y ejecuta:
+
+```bash
+cd server
+source venv/bin/activate
+python3 landing.py
+```
+
+Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local del servidor** y renderiza esta documentación en HTML.
+
+---
+
+### 8. Acceder a las interfaces
+
+| Interfaz | URL |
+|----------|-----|
+| **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
+| Panel de administración | http://localhost:8000/admin/ |
+| App barman (PWA) | http://localhost:8000/barman/ |
+| Documentación API automática | http://localhost:8000/docs |
+
+Para que los barmans accedan desde su móvil, usa la **IP local** del servidor en lugar de `localhost`. Puedes verla con:
+
+```bash
+ip route get 1 | awk '{print $7; exit}'
+# o alternativamente:
+hostname -I | awk '{print $1}'
+```
+
+Pide a los barmans que abran `http://<tu-ip>:8000/barman/`.
 
 ---
 
