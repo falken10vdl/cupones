@@ -71,7 +71,7 @@ function storeCoupons(coupons) {
           assigned_barman_name: coupon.assigned_barman_name || '',
           hmac_signature:       coupon.hmac_signature || '',
           redeemed_at:          coupon.redeemed_at    || null,
-          redeemed_locally:     false
+          redeemed_locally:     0
         });
       }
 
@@ -121,7 +121,7 @@ function markRedeemed(code, timestamp, barmanId) {
           return;
         }
 
-        coupon.redeemed_locally = true;
+        coupon.redeemed_locally = 1;
         coupon.redeemed_at      = timestamp;
         couponStore.put(coupon);
 
@@ -132,6 +132,29 @@ function markRedeemed(code, timestamp, barmanId) {
         });
       };
 
+      tx.oncomplete = () => resolve();
+      tx.onerror    = e  => reject(e.target.error);
+    });
+  });
+}
+
+/**
+ * Mark a coupon as redeemed in the local cache without adding to pending_sync.
+ * Used after a successful online redemption so stats stay accurate.
+ */
+function markRedeemedOnline(code, timestamp) {
+  return initDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx    = db.transaction('coupons', 'readwrite');
+      const store = tx.objectStore('coupons');
+      const req   = store.get(code);
+      req.onsuccess = e => {
+        const coupon = e.target.result;
+        if (!coupon) { resolve(); return; }
+        coupon.redeemed_locally = 1;
+        coupon.redeemed_at      = timestamp;
+        store.put(coupon);
+      };
       tx.oncomplete = () => resolve();
       tx.onerror    = e  => reject(e.target.error);
     });
@@ -195,7 +218,7 @@ function getStats() {
       // redeemed (locally or server-confirmed)
       const tx2  = db.transaction('coupons', 'readonly');
       const idx  = tx2.objectStore('coupons').index('redeemed_locally');
-      idx.count(IDBKeyRange.only(true)).onsuccess = e => {
+      idx.count(IDBKeyRange.only(1)).onsuccess = e => {
         stats.redeemed = e.target.result;
         done();
       };

@@ -37,17 +37,56 @@ function tryAutoLogin() {
 
 // ── Screen helpers ───────────────────────────────────────────
 function showLogin() {
-  document.getElementById('screen-login').style.display  = 'flex';
-  document.getElementById('screen-main').style.display   = 'none';
-  document.getElementById('overlay-scanner').style.display = 'none';
-  document.getElementById('overlay-result').style.display  = 'none';
+  document.getElementById('screen-login').style.display        = 'flex';
+  document.getElementById('screen-event-select').style.display = 'none';
+  document.getElementById('screen-main').style.display         = 'none';
+  document.getElementById('overlay-scanner').style.display     = 'none';
+  document.getElementById('overlay-result').style.display      = 'none';
+}
+
+function showEventSelect(barmanName, events, pin) {
+  document.getElementById('screen-login').style.display        = 'none';
+  document.getElementById('screen-event-select').style.display = 'flex';
+  document.getElementById('screen-main').style.display         = 'none';
+  document.getElementById('overlay-scanner').style.display     = 'none';
+  document.getElementById('overlay-result').style.display      = 'none';
+
+  document.getElementById('event-select-greeting').textContent = `Hola, ${barmanName}`;
+
+  const list = document.getElementById('event-select-list');
+  list.innerHTML = events.map(ev => `
+    <button
+      onclick="selectBarmanEvent(${JSON.stringify(ev).replace(/"/g, '&quot;')}, '${pin}')"
+      style="width:100%;padding:1rem;text-align:left;background:#1a1a2e;border:1px solid #333;border-radius:.6rem;cursor:pointer;color:#fff">
+      <div style="font-weight:600;font-size:1rem">${escHtml(ev.event_name)}</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">📅 ${escHtml(ev.event_date || '')}</div>
+    </button>
+  `).join('');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function selectBarmanEvent(ev, pin) {
+  currentBarman = {
+    id:         ev.barman_id,
+    name:       ev.barman_name || ev.name || '',
+    pin:        pin,
+    event_id:   ev.event_id,
+    event_name: ev.event_name
+  };
+  localStorage.setItem('barman_session', JSON.stringify(currentBarman));
+  showMain();
+  await refreshCouponCache();
 }
 
 function showMain() {
-  document.getElementById('screen-login').style.display  = 'none';
-  document.getElementById('screen-main').style.display   = 'flex';
-  document.getElementById('overlay-scanner').style.display = 'none';
-  document.getElementById('overlay-result').style.display  = 'none';
+  document.getElementById('screen-login').style.display        = 'none';
+  document.getElementById('screen-event-select').style.display = 'none';
+  document.getElementById('screen-main').style.display         = 'flex';
+  document.getElementById('overlay-scanner').style.display     = 'none';
+  document.getElementById('overlay-result').style.display      = 'none';
 
   document.getElementById('barman-name').textContent  = currentBarman.name;
   document.getElementById('event-name').textContent   = currentBarman.event_name;
@@ -57,14 +96,14 @@ function showMain() {
 
 // ── Login ─────────────────────────────────────────────────────
 async function doLogin() {
-  const eventId = document.getElementById('login-event-id').value.trim();
-  const pin     = document.getElementById('login-pin').value.trim();
-  const btn     = document.getElementById('login-btn');
-  const errEl   = document.getElementById('login-error');
+  const username = document.getElementById('login-username').value.trim();
+  const pin      = document.getElementById('login-pin').value.trim();
+  const btn      = document.getElementById('login-btn');
+  const errEl    = document.getElementById('login-error');
 
   errEl.textContent = '';
 
-  if (!eventId || !pin) {
+  if (!username || !pin) {
     errEl.textContent = 'Completa todos los campos.';
     return;
   }
@@ -80,7 +119,7 @@ async function doLogin() {
     const res  = await fetch(`${API_BASE}/api/barman/login`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ event_id: Number(eventId), pin })
+      body:    JSON.stringify({ username, pin })
     });
 
     const data = await res.json();
@@ -90,24 +129,37 @@ async function doLogin() {
       return;
     }
 
-    currentBarman = {
-      id:         data.barman_id,
-      name:       data.barman_name,
-      pin:        pin,
-      event_id:   data.event_id,
-      event_name: data.event_name
-    };
-
-    localStorage.setItem('barman_session', JSON.stringify(currentBarman));
-
     // Store HMAC key if provided
     if (data.hmac_key) {
       localStorage.setItem('barman_hmac_key', data.hmac_key);
     }
 
-    showMain();
-    // Auto-fetch coupon cache on first login
-    await refreshCouponCache();
+    const events = data.events || [];
+
+    if (events.length === 0) {
+      errEl.textContent = 'No tienes eventos asignados.';
+      return;
+    }
+
+    if (events.length === 1) {
+      // Only one event — go straight to main
+      const ev = events[0];
+      currentBarman = {
+        id:         ev.barman_id,
+        name:       data.barman_name,
+        pin:        pin,
+        event_id:   ev.event_id,
+        event_name: ev.event_name
+      };
+      localStorage.setItem('barman_session', JSON.stringify(currentBarman));
+      showMain();
+      await refreshCouponCache();
+    } else {
+      // Multiple events — show selection screen
+      // Attach barman_name to each entry for selectBarmanEvent
+      const enriched = events.map(ev => ({ ...ev, barman_name: data.barman_name }));
+      showEventSelect(data.barman_name, enriched, pin);
+    }
 
   } catch (err) {
     errEl.textContent = 'Sin conexión. Intenta de nuevo.';
@@ -186,27 +238,98 @@ async function refreshStats() {
 }
 
 // ── Scanner ───────────────────────────────────────────────────
+function setupFileInput() {
+  const input = document.getElementById('qr-file-input');
+  if (!input || input.dataset.bound) return;
+  input.dataset.bound = '1';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const tempId = 'qr-scan-temp';
+    let tempDiv = document.getElementById(tempId);
+    if (!tempDiv) {
+      tempDiv = document.createElement('div');
+      tempDiv.id = tempId;
+      tempDiv.style.display = 'none';
+      document.body.appendChild(tempDiv);
+    }
+    try {
+      const scanner = new Html5Qrcode(tempId);
+      const result = await scanner.scanFile(file, false);
+      await scanner.clear();
+      onQrScanned(result);
+    } catch (e) {
+      showResult({ type: 'INVALID', message: '❌ No se encontró un QR válido en la imagen.' });
+    }
+  });
+}
+
+// ── Native BarcodeDetector scanner ───────────────────────────
+let _scanStream = null;
+let _scanActive = false;
+
 async function openScanner() {
   if (isScannerOpen) return;
-
-  document.getElementById('overlay-scanner').style.display = 'flex';
   isScannerOpen = true;
+  setupFileInput();
+  document.getElementById('overlay-scanner').style.display = 'flex';
 
-  initScanner(onQrScanned);
+  if ('BarcodeDetector' in window) {
+    await _startBarcodeDetector();
+  } else {
+    // Fallback: html5-qrcode live viewfinder
+    initScanner(onQrScanned);
+    try {
+      await startScanning();
+    } catch (err) {
+      showResult({ type: 'INVALID', message: '❌ Cámara no disponible. Usa el enlace "Usar foto".' });
+    }
+  }
+}
 
+async function _startBarcodeDetector() {
+  const video = document.getElementById('scanner-video');
+  video.style.display = 'block';
   try {
-    await startScanning();
-  } catch (err) {
-    isScannerOpen = false;
-    document.getElementById('overlay-scanner').style.display = 'none';
-    showResult({
-      type:    'INVALID',
-      message: '❌ No se pudo acceder a la cámara.\n' + (err.message || err)
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    const stream   = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
     });
+    _scanStream = stream;
+    video.srcObject = stream;
+    await video.play();
+    _scanActive = true;
+
+    const scan = async () => {
+      if (!_scanActive) return;
+      try {
+        const results = await detector.detect(video);
+        if (results.length > 0) {
+          await closeScanner();
+          onQrScanned(results[0].rawValue);
+          return;
+        }
+      } catch (_) {}
+      requestAnimationFrame(scan);
+    };
+    requestAnimationFrame(scan);
+  } catch (err) {
+    video.style.display = 'none';
+    document.getElementById('overlay-scanner').style.display = 'none';
+    isScannerOpen = false;
+    showResult({ type: 'INVALID', message: '❌ No se pudo acceder a la cámara.\nUsa el botón "Usar foto" dentro del escáner.' });
   }
 }
 
 async function closeScanner() {
+  _scanActive = false;
+  if (_scanStream) {
+    _scanStream.getTracks().forEach(t => t.stop());
+    _scanStream = null;
+  }
+  const video = document.getElementById('scanner-video');
+  if (video) video.srcObject = null;
   await stopScanning();
   document.getElementById('overlay-scanner').style.display = 'none';
   isScannerOpen = false;
@@ -216,7 +339,10 @@ async function closeScanner() {
 let lastScannedCode = '';
 let scanCooldown    = false;
 
-async function onQrScanned(code) {
+async function onQrScanned(raw) {
+  // QR format: "CODE|event_id|hmac"  – extract just the code part
+  const code = raw.includes('|') ? raw.split('|')[0].trim() : raw.trim();
+
   if (scanCooldown || code === lastScannedCode) return;
 
   lastScannedCode = code;
@@ -250,13 +376,17 @@ async function processOnline(code) {
     const data = await res.json();
 
     switch (data.status) {
+      case 'success':
       case 'SUCCESS':
+        // Update local IDB so the stats counter reflects this redemption
+        markRedeemedOnline(code, new Date().toISOString()).catch(() => {});
         showResult({
           type:    'SUCCESS',
           message: `✅ Cupón válido\n${data.holder_name}\n¡Servido!`
         });
         break;
 
+      case 'already_redeemed':
       case 'ALREADY_USED':
         showResult({
           type:    'ALREADY_USED',
@@ -285,6 +415,7 @@ async function processOffline(code) {
   const coupon = await getCoupon(code);
 
   if (!coupon) {
+    lastScannedCode = '';   // allow retry
     showResult({
       type:    'INVALID',
       message: '❌ No se puede verificar offline.\nCupón no asignado a este barman.'
@@ -292,11 +423,12 @@ async function processOffline(code) {
     return;
   }
 
-  // Verify HMAC signature
+  // Verify HMAC signature  (server signs "{code}:{event_id}")
   const hmacKey = localStorage.getItem('barman_hmac_key');
   if (hmacKey && coupon.hmac_signature) {
-    const valid = await verifyHmac(code, coupon.hmac_signature, hmacKey);
+    const valid = await verifyHmac(code, coupon.event_id, coupon.hmac_signature, hmacKey);
     if (!valid) {
+      lastScannedCode = '';   // allow retry of the same coupon
       showResult({
         type:    'INVALID',
         message: '❌ Firma del cupón inválida.\nPosible falsificación.'
@@ -334,9 +466,9 @@ async function processOffline(code) {
 }
 
 // ── HMAC verification (Web Crypto API) ───────────────────────
-async function verifyHmac(code, signature, keyString) {
+async function verifyHmac(code, eventId, signature, keyString) {
   try {
-    const enc        = new TextEncoder();
+    const enc         = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       enc.encode(keyString),
@@ -346,11 +478,13 @@ async function verifyHmac(code, signature, keyString) {
     );
 
     const sigBytes = hexToBytes(signature);
+    // Server signs "{code}:{event_id}" — must match exactly
+    const message  = `${code}:${eventId}`;
     return await crypto.subtle.verify(
       'HMAC',
       keyMaterial,
       sigBytes,
-      enc.encode(code)
+      enc.encode(message)
     );
   } catch (e) {
     console.error('HMAC verify error', e);
@@ -449,7 +583,7 @@ async function refreshCouponCache() {
 
   try {
     const res = await fetch(
-      `${API_BASE}/api/barman/${currentBarman.id}/coupons?pin=${encodeURIComponent(currentBarman.pin)}`
+      `${API_BASE}/api/barman/${currentBarman.id}/coupons?barman_pin=${encodeURIComponent(currentBarman.pin)}`
     );
 
     if (!res.ok) {

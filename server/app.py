@@ -2,13 +2,20 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+import logging
 import socket
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import (
+    RedirectResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    Response,
+)
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from config import ADMIN_PIN, SECRET_KEY
@@ -18,6 +25,8 @@ from coupon_utils import generate_code, sign_coupon, generate_qr_base64
 from email_service import send_coupon_email
 
 README_PATH = Path(__file__).parent.parent / "README.md"
+
+logger = logging.getLogger("access")
 
 
 def get_local_ip() -> str:
@@ -33,7 +42,19 @@ def get_local_ip() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(name)s  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     create_tables()
+    # Migrate: add username column if missing
+    with SessionLocal() as db:
+        try:
+            db.execute(text("ALTER TABLE barmans ADD COLUMN username TEXT"))
+            db.commit()
+        except Exception:
+            pass  # column already exists
     yield
 
 
@@ -46,6 +67,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    # Prefer X-Forwarded-For if behind a proxy, fall back to direct client IP
+    forwarded_for = request.headers.get("x-forwarded-for")
+    client_ip = (
+        forwarded_for.split(",")[0].strip()
+        if forwarded_for
+        else (request.client.host if request.client else "unknown")
+    )
+    response = await call_next(request)
+    logger.info(
+        "%s %s %s  [%s]",
+        request.method,
+        request.url.path,
+        response.status_code,
+        client_ip,
+    )
+    return response
 
 
 def get_db():
@@ -74,8 +115,14 @@ class CreateEvent(BaseModel):
 
 class CreateBarman(BaseModel):
     name: str
+    username: str
     pin: str
     event_id: int
+    admin_pin: str
+
+
+class AssignBarman(BaseModel):
+    username: str
     admin_pin: str
 
 
@@ -109,7 +156,6 @@ class SyncRequest(BaseModel):
 
 
 class SendEmailRequest(BaseModel):
-    coupon_id: int
     admin_pin: str
 
 
@@ -119,19 +165,13 @@ class SendAllEmailsRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    username: str
     pin: str
-    event_id: int
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
-
-
-@app.get("/")
-def root():
-    return RedirectResponse(url="/admin/")
-
 
 # --- Events -----------------------------------------------------------------
 
@@ -193,6 +233,21 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
     }
 
 
+@app.delete("/api/events/{event_id}")
+def delete_event(
+    event_id: int, admin_pin: str = Query(...), db: Session = Depends(get_db)
+):
+    verify_admin(admin_pin)
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    db.query(Coupon).filter(Coupon.event_id == event_id).delete()
+    db.query(Barman).filter(Barman.event_id == event_id).delete()
+    db.delete(event)
+    db.commit()
+    return {"ok": True}
+
+
 # --- Barmans ----------------------------------------------------------------
 
 
@@ -202,11 +257,55 @@ def create_barman(payload: CreateBarman, db: Session = Depends(get_db)):
     event = db.query(Event).filter(Event.id == payload.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
-    barman = Barman(name=payload.name, pin=payload.pin, event_id=payload.event_id)
+    if (
+        db.query(Barman)
+        .filter(
+            Barman.username == payload.username, Barman.event_id == payload.event_id
+        )
+        .first()
+    ):
+        raise HTTPException(
+            status_code=400, detail="El nombre de usuario ya existe en este evento"
+        )
+    barman = Barman(
+        name=payload.name,
+        username=payload.username,
+        pin=payload.pin,
+        event_id=payload.event_id,
+    )
     db.add(barman)
     db.commit()
     db.refresh(barman)
-    return {"id": barman.id, "name": barman.name, "event_id": barman.event_id}
+    return {
+        "id": barman.id,
+        "name": barman.name,
+        "username": barman.username,
+        "event_id": barman.event_id,
+    }
+
+
+@app.get("/api/barmans")
+def list_all_barmans(db: Session = Depends(get_db)):
+    """Return all distinct barmans (by username) with their event assignments."""
+    all_barmans = db.query(Barman).order_by(Barman.username, Barman.created_at).all()
+    pool: dict = {}
+    for b in all_barmans:
+        if b.username not in pool:
+            pool[b.username] = {
+                "username": b.username,
+                "name": b.name,
+                "pin": b.pin,
+                "assignments": [],
+            }
+        ev = db.query(Event).filter(Event.id == b.event_id).first()
+        pool[b.username]["assignments"].append(
+            {
+                "barman_id": b.id,
+                "event_id": b.event_id,
+                "event_name": ev.name if ev else "—",
+            }
+        )
+    return list(pool.values())
 
 
 @app.get("/api/events/{event_id}/barmans")
@@ -215,10 +314,114 @@ def list_barmans(event_id: int, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
     barmans = db.query(Barman).filter(Barman.event_id == event_id).all()
-    return [{"id": b.id, "name": b.name, "event_id": b.event_id} for b in barmans]
+    return [
+        {"id": b.id, "name": b.name, "username": b.username, "event_id": b.event_id}
+        for b in barmans
+    ]
 
 
-# --- Coupons ----------------------------------------------------------------
+@app.post("/api/events/{event_id}/barmans/assign")
+def assign_barman_to_event(
+    event_id: int, payload: AssignBarman, db: Session = Depends(get_db)
+):
+    verify_admin(payload.admin_pin)
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    source = db.query(Barman).filter(Barman.username == payload.username).first()
+    if not source:
+        raise HTTPException(
+            status_code=404, detail="Barman no encontrado en el sistema"
+        )
+    if (
+        db.query(Barman)
+        .filter(Barman.username == payload.username, Barman.event_id == event_id)
+        .first()
+    ):
+        raise HTTPException(
+            status_code=409, detail="El barman ya está asignado a este evento"
+        )
+    new_barman = Barman(
+        username=source.username,
+        name=source.name,
+        pin=source.pin,
+        event_id=event_id,
+    )
+    db.add(new_barman)
+    db.commit()
+    db.refresh(new_barman)
+    return {
+        "id": new_barman.id,
+        "name": new_barman.name,
+        "username": new_barman.username,
+        "event_id": new_barman.event_id,
+    }
+
+
+@app.delete("/api/events/{event_id}/barmans/{barman_id}")
+def remove_barman_from_event(
+    event_id: int,
+    barman_id: int,
+    admin_pin: str = Query(...),
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    verify_admin(admin_pin)
+    barman = (
+        db.query(Barman)
+        .filter(Barman.id == barman_id, Barman.event_id == event_id)
+        .first()
+    )
+    if not barman:
+        raise HTTPException(
+            status_code=404, detail="Barman no encontrado en este evento"
+        )
+    coupon_count = (
+        db.query(Coupon).filter(Coupon.assigned_barman_id == barman_id).count()
+    )
+    if coupon_count > 0 and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Este barman tiene {coupon_count} cupón(es) asignado(s). El modo sin conexión no será posible para esos cupones.",
+        )
+    if coupon_count > 0:
+        db.query(Coupon).filter(Coupon.assigned_barman_id == barman_id).update(
+            {"assigned_barman_id": None}
+        )
+    db.delete(barman)
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/api/barmans/{username}")
+def delete_barman_from_system(
+    username: str,
+    admin_pin: str = Query(...),
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    verify_admin(admin_pin)
+    rows = db.query(Barman).filter(Barman.username == username).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Barman no encontrado")
+    barman_ids = [b.id for b in rows]
+    # Count all coupons assigned to any of this barman's rows (across all events)
+    coupon_count = (
+        db.query(Coupon).filter(Coupon.assigned_barman_id.in_(barman_ids)).count()
+    )
+    if coupon_count > 0 and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Este barman tiene {coupon_count} cupón(es) asignado(s) en total. Los clientes con esos cupones NO podrán canjearlos en modo sin conexión si se elimina el barman.",
+        )
+    if coupon_count > 0:
+        db.query(Coupon).filter(Coupon.assigned_barman_id.in_(barman_ids)).update(
+            {"assigned_barman_id": None}, synchronize_session="fetch"
+        )
+    for b in rows:
+        db.delete(b)
+    db.commit()
+    return {"status": "ok", "deleted_assignments": len(rows)}
 
 
 @app.post("/api/coupons/generate")
@@ -281,18 +484,40 @@ def generate_coupons(payload: GenerateCoupons, db: Session = Depends(get_db)):
     return created
 
 
-@app.post("/api/coupons/send-email")
+@app.delete("/api/coupons/{coupon_id}")
+def delete_coupon(
+    coupon_id: int, admin_pin: str = Query(...), db: Session = Depends(get_db)
+):
+    verify_admin(admin_pin)
+    coupon = db.query(Coupon).filter(Coupon.id == coupon_id).first()
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Cupón no encontrado")
+    if coupon.redeemed_at:
+        raise HTTPException(
+            status_code=400, detail="No se puede borrar un cupón ya canjeado"
+        )
+    db.delete(coupon)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/coupons/{code}/send-email")
 def send_coupon_email_endpoint(
-    payload: SendEmailRequest, db: Session = Depends(get_db)
+    code: str, payload: SendEmailRequest, db: Session = Depends(get_db)
 ):
     verify_admin(payload.admin_pin)
-    coupon = db.query(Coupon).filter(Coupon.id == payload.coupon_id).first()
+    coupon = db.query(Coupon).filter(Coupon.code == code).first()
     if not coupon:
         raise HTTPException(status_code=404, detail="Cupón no encontrado")
     if not coupon.holder_email:
         raise HTTPException(status_code=400, detail="El cupón no tiene email asignado")
 
     event = db.query(Event).filter(Event.id == coupon.event_id).first()
+    assigned_barman = (
+        db.query(Barman).filter(Barman.id == coupon.assigned_barman_id).first()
+        if coupon.assigned_barman_id
+        else None
+    )
     qr_data = f"{coupon.code}|{coupon.event_id}|{coupon.hmac_signature}"
     qr_base64 = generate_qr_base64(qr_data)
 
@@ -302,6 +527,7 @@ def send_coupon_email_endpoint(
         coupon_code=coupon.code,
         event_name=event.name if event else "",
         qr_base64=qr_base64,
+        barman_name=assigned_barman.name if assigned_barman else "",
     )
 
     coupon.email_sent_at = datetime.utcnow()
@@ -332,6 +558,11 @@ def send_all_emails(payload: SendAllEmailsRequest, db: Session = Depends(get_db)
 
     for coupon in coupons:
         try:
+            assigned_barman = (
+                db.query(Barman).filter(Barman.id == coupon.assigned_barman_id).first()
+                if coupon.assigned_barman_id
+                else None
+            )
             qr_data = f"{coupon.code}|{coupon.event_id}|{coupon.hmac_signature}"
             qr_base64 = generate_qr_base64(qr_data)
             send_coupon_email(
@@ -340,6 +571,7 @@ def send_all_emails(payload: SendAllEmailsRequest, db: Session = Depends(get_db)
                 coupon_code=coupon.code,
                 event_name=event.name,
                 qr_base64=qr_base64,
+                barman_name=assigned_barman.name if assigned_barman else "",
             )
             coupon.email_sent_at = datetime.utcnow()
             sent_count += 1
@@ -355,10 +587,40 @@ def send_all_emails(payload: SendAllEmailsRequest, db: Session = Depends(get_db)
 # --- Redeem -----------------------------------------------------------------
 
 
+@app.get("/api/debug/scan")
+def debug_scan(raw: str, db: Session = Depends(get_db)):
+    """Debug helper: pass the raw QR string and see how it is parsed and whether the coupon exists."""
+    parts = raw.split("|")
+    parsed_code = parts[0].strip() if parts else raw.strip()
+    coupon = db.query(Coupon).filter(Coupon.code == parsed_code).first()
+    all_codes = [c.code for c in db.query(Coupon.code).limit(10).all()]
+    return {
+        "raw_input": raw,
+        "parsed_code": parsed_code,
+        "parts": parts,
+        "coupon_found": coupon is not None,
+        "coupon_detail": (
+            {
+                "id": coupon.id,
+                "code": coupon.code,
+                "holder": coupon.holder_name,
+                "redeemed_at": coupon.redeemed_at,
+            }
+            if coupon
+            else None
+        ),
+        "sample_db_codes": all_codes,
+    }
+
+
 @app.post("/api/redeem")
 def redeem_coupon(payload: RedeemRequest, db: Session = Depends(get_db)):
+    logger.info("REDEEM payload: code=%r barman_id=%r", payload.code, payload.barman_id)
     coupon = db.query(Coupon).filter(Coupon.code == payload.code).first()
     if not coupon:
+        # Log nearby codes to help spot case/whitespace differences
+        sample = [c.code for c in db.query(Coupon.code).limit(5).all()]
+        logger.warning("REDEEM 404: code=%r  sample_db_codes=%r", payload.code, sample)
         raise HTTPException(status_code=404, detail="Cupón no encontrado")
 
     if coupon.redeemed_at is not None:
@@ -458,7 +720,14 @@ def get_barman_coupons(
     if not barman or barman.pin != barman_pin:
         raise HTTPException(status_code=403, detail="PIN de barman incorrecto")
 
-    coupons = db.query(Coupon).filter(Coupon.assigned_barman_id == barman_id).all()
+    coupons = (
+        db.query(Coupon)
+        .filter(
+            Coupon.assigned_barman_id == barman_id,
+            Coupon.redeemed_at == None,  # noqa: E711 – SQLAlchemy requires == None
+        )
+        .all()
+    )
 
     coupon_list = []
     for c in coupons:
@@ -490,20 +759,41 @@ def barman_login(payload: LoginRequest, db: Session = Depends(get_db)):
     barman = (
         db.query(Barman)
         .filter(
+            Barman.username == payload.username,
             Barman.pin == payload.pin,
-            Barman.event_id == payload.event_id,
         )
         .first()
     )
     if not barman:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    event = db.query(Event).filter(Event.id == barman.event_id).first()
+    # Return barman info + all events this barman is assigned to
+    all_assignments = (
+        db.query(Barman)
+        .filter(
+            Barman.username == payload.username,
+            Barman.pin == payload.pin,
+        )
+        .all()
+    )
+    events = []
+    for b in all_assignments:
+        ev = db.query(Event).filter(Event.id == b.event_id).first()
+        if ev:
+            events.append(
+                {
+                    "barman_id": b.id,
+                    "event_id": ev.id,
+                    "event_name": ev.name,
+                    "event_date": ev.date,
+                }
+            )
+
     return {
-        "id": barman.id,
-        "name": barman.name,
-        "event_id": barman.event_id,
-        "event_name": event.name if event else None,
+        "barman_id": barman.id,
+        "barman_name": barman.name,
+        "username": barman.username,
+        "events": events,
     }
 
 
@@ -555,6 +845,11 @@ def list_event_coupons(
     return result
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 # Mount static files (after API routes so they don't shadow /api/ paths)
 app.mount("/barman", StaticFiles(directory="../barman", html=True), name="barman")
 app.mount("/admin", StaticFiles(directory="../admin", html=True), name="admin")
@@ -562,6 +857,7 @@ app.mount("/admin", StaticFiles(directory="../admin", html=True), name="admin")
 # ---------------------------------------------------------------------------
 # Landing page (puerto único 8080)
 # ---------------------------------------------------------------------------
+
 
 @app.get("/readme.md", response_class=PlainTextResponse, include_in_schema=False)
 def get_readme():
@@ -627,8 +923,8 @@ def landing():
       <div class="ip-hint">Haz clic para copiar · Puerto: 8080</div>
     </div>
     <div class="links">
-      <a class="primary" href="http://{ip}:8080/barman/" target="_blank">📱 App Barman</a>
-      <a href="http://{ip}:8080/admin/" target="_blank">🖥️ Panel Admin</a>
+      <a class="primary" href="https://{ip}:8080/barman/" target="_blank">📱 App Barman</a>
+      <a href="https://{ip}:8080/admin/" target="_blank">🖥️ Panel Admin</a>
       <a href="/docs" target="_blank">📖 API Docs</a>
     </div>
   </header>
@@ -660,6 +956,17 @@ def landing():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import os
     import uvicorn
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
+    ssl_keyfile = "cert.key" if os.path.exists("cert.key") else None
+    ssl_certfile = "cert.pem" if os.path.exists("cert.pem") else None
+
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=8080,
+        reload=True,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+    )

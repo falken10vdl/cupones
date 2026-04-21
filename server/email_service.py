@@ -13,6 +13,7 @@ def send_coupon_email(
     coupon_code: str,
     event_name: str,
     qr_base64: str,
+    barman_name: str = "",
 ) -> None:
     """Send a coupon email via Gmail SMTP with the QR code embedded as an inline image.
 
@@ -39,11 +40,18 @@ def send_coupon_email(
     alt_part = MIMEMultipart("alternative")
     msg.attach(alt_part)
 
+    barman_note = (
+        f"Por favor usa preferentemente el barman: {barman_name}.\n"
+        if barman_name
+        else ""
+    )
     plain_body = (
         f"Hola {holder_name},\n\n"
+        f"Aquí tienes tu cupón de bebida gratuita. Muéstraselo al barman al llegar.\n\n"
+        f"{barman_note}"
         f"Tu cupón para el evento '{event_name}' es:\n\n"
         f"  {coupon_code}\n\n"
-        "Presenta este código o el QR adjunto al barman.\n\n"
+        "Presenta este código o el QR adjunto para canjear tu copa.\n\n"
         "¡Disfruta del evento!"
     )
 
@@ -128,6 +136,7 @@ def send_coupon_email(
     <div class="body">
       <p>¡Hola, <strong>{holder_name}</strong>! 🎉</p>
       <p>Aquí tienes tu cupón de bebida gratuita. Muéstraselo al barman al llegar.</p>
+      {f'<p style="font-size:14px;color:#555;">Por favor usa preferentemente el barman: <strong>{barman_name}</strong>.</p>' if barman_name else ''}
       <div class="qr-wrapper">
         <img src="cid:qr_code_image" alt="QR del cupón" />
       </div>

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Sistema de Cupones</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127915;</text></svg>" />
   <style>
     :root {
       --primary: #1a1a2e;
@@ -17,6 +18,7 @@
       --radius: 8px;
       --shadow: 0 2px 12px rgba(0,0,0,0.08);
       --tab-h: 48px;
+      --danger: #dc2626;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -254,13 +256,13 @@
       flex-shrink: 0;
     }
     .event-item.selected .event-icon { background: var(--accent); }
-    .event-item .select-badge {
-      margin-left: auto;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--accent);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .event-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .event-row .event-item {
+      flex: 1;
     }
 
     /* ── Barman list ── */
@@ -572,6 +574,44 @@
     .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
     .mt-8 { margin-top: 8px; }
     .mt-14 { margin-top: 14px; }
+
+    /* ── Delete-event modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 32px 28px 24px;
+      max-width: 440px;
+      width: 92%;
+      box-shadow: 0 12px 60px rgba(0,0,0,.5);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-warning-icon { font-size: 2.8rem; text-align: center; }
+    .modal-title { font-size: 1.25rem; font-weight: 700; text-align: center; color: var(--danger); }
+    .modal-body { font-size: .92rem; line-height: 1.55; color: var(--text); }
+    .modal-body strong { color: var(--danger); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+    .btn-danger { background: var(--danger); color: #fff; border: none; }
+    .btn-danger:hover { filter: brightness(.88); }
+    .event-item > div:nth-child(2) { flex: 1; }
+    .btn-delete-event {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.1rem; color: var(--text-muted);
+      padding: 6px 8px; border-radius: 6px; line-height: 1;
+      flex-shrink: 0;
+      transition: color .15s, background .15s;
+    }
+    .btn-delete-event:hover { color: var(--danger); background: rgba(220,38,38,.08); }
   </style>
 </head>
 <body>
@@ -582,7 +622,7 @@
   <div id="pin-area">
     <input type="password" id="pin-input" placeholder="Admin PIN" maxlength="20"
            onkeydown="if(event.key==='Enter') setPin()" />
-    <button onclick="setPin()">Ingresar</button>
+    <button id="topbar-btn" onclick="setPin()">Identificarse</button>
     <span id="pin-status" class="locked">🔒 Sin PIN</span>
   </div>
 </div>
@@ -609,30 +649,47 @@
 
   <!-- ═══════════════════ TAB: EVENTOS ═══════════════════ -->
   <div id="panel-eventos" class="panel active">
-    <div class="card">
-      <h2>Eventos existentes</h2>
-      <div id="events-list"><div class="empty"><div class="empty-icon">📭</div>Cargando eventos…</div></div>
+
+    <!-- Shown when not authenticated -->
+    <div id="events-auth-msg" class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
+      <div style="font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:8px">Acceso restringido</div>
+      <div style="font-size:0.88rem;color:var(--text-muted)">Ingresa tu PIN de administrador arriba y pulsa <strong>Identificarse</strong> para continuar.</div>
     </div>
 
-    <div class="card">
-      <h2>Crear nuevo evento</h2>
-      <div class="form-grid">
-        <div class="form-row">
-          <label>Nombre del evento</label>
-          <input type="text" id="ev-name" placeholder="Ej: Fiesta de Verano 2026" />
-        </div>
-        <div class="form-row">
-          <label>Fecha</label>
-          <input type="date" id="ev-date" />
-        </div>
+    <!-- Shown after authentication -->
+    <div id="events-content" style="display:none">
+      <div class="card">
+        <h2>Eventos existentes</h2>
+        <div id="events-list"><div class="empty"><div class="empty-icon">📭</div>Cargando eventos…</div></div>
       </div>
-      <div class="form-row" style="max-width:260px">
-        <label>Admin PIN (confirmación)</label>
-        <input type="password" id="ev-pin" placeholder="PIN de administrador" />
+
+      <div class="card">
+        <h2>Crear nuevo evento</h2>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>Nombre del evento</label>
+            <input type="text" id="ev-name" placeholder="Ej: Fiesta de Verano 2026" />
+          </div>
+          <div class="form-row">
+            <label>Fecha</label>
+            <div style="position:relative;display:flex;align-items:center">
+              <input type="text" id="ev-date" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}"
+                style="padding-right:36px;width:100%;box-sizing:border-box" />
+              <input type="date" id="ev-date-picker" tabindex="-1"
+                style="position:absolute;right:0;top:0;width:32px;height:100%;opacity:0;cursor:pointer;border:none" />
+              <span style="position:absolute;right:8px;pointer-events:none;font-size:1rem;color:var(--text-muted)">&#128197;</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row auth-pin-row" style="max-width:260px">
+          <label>Admin PIN (confirmación)</label>
+          <input type="password" id="ev-pin" placeholder="PIN de administrador" />
+        </div>
+        <button class="btn btn-primary" id="btn-create-event" onclick="submitEvent()">
+          ＋ Crear evento
+        </button>
       </div>
-      <button class="btn btn-primary" id="btn-create-event" onclick="createEvent()">
-        ＋ Crear evento
-      </button>
     </div>
   </div>
 
@@ -649,10 +706,25 @@
     </div>
 
     <div class="card">
+      <div class="flex-between">
+        <h2 style="margin-bottom:0;border:none;padding:0">Barmans registrados</h2>
+        <span class="barman-count" id="pool-count-label">— en el sistema</span>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin:8px 0 14px">Barmans del sistema. Asígnalos al evento seleccionado o quítalos de él.</p>
+      <div id="pool-list">
+        <div class="empty"><div class="empty-icon">🍹</div>Selecciona un evento primero</div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Agregar barman</h2>
       <div class="form-grid">
         <div class="form-row">
-          <label>Nombre</label>
+          <label>Usuario (para login del barman)</label>
+          <input type="text" id="bm-username" placeholder="Ej: carlos" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label>Nombre (informativo)</label>
           <input type="text" id="bm-name" placeholder="Ej: Carlos López" />
         </div>
         <div class="form-row">
@@ -660,7 +732,7 @@
           <input type="text" id="bm-pin" placeholder="Ej: 1234" maxlength="6" pattern="\d{4,6}" />
         </div>
       </div>
-      <div class="form-row" style="max-width:260px">
+      <div class="form-row auth-pin-row" style="max-width:260px">
         <label>Admin PIN (confirmación)</label>
         <input type="password" id="bm-admin-pin" placeholder="PIN de administrador" />
       </div>
@@ -705,7 +777,7 @@
         </div>
       </div>
 
-      <div class="form-row" style="max-width:260px;margin-top:4px">
+      <div class="form-row auth-pin-row" style="max-width:260px;margin-top:4px">
         <label>Admin PIN (confirmación)</label>
         <input type="password" id="gen-pin" placeholder="PIN de administrador" />
       </div>
@@ -833,23 +905,46 @@ function setPin() {
   if (!val) { toast('Escribe un PIN primero', 'error'); return; }
   state.adminPin = val;
   sessionStorage.setItem('admin_pin', val);
-  updatePinStatus();
-  toast('PIN guardado ✔', 'success');
-  // auto-fill pin fields
-  document.querySelectorAll('input[type=password][id$="-pin"], input[type=password][id$="-admin-pin"]')
-    .forEach(el => { if (!el.value) el.value = val; });
   document.getElementById('tbl-pin').value = val;
+  updatePinStatus();
+  // unlock events panel
+  document.getElementById('events-auth-msg').style.display = 'none';
+  document.getElementById('events-content').style.display = '';
+  loadEvents();
+}
+
+function logout() {
+  state.adminPin = '';
+  sessionStorage.removeItem('admin_pin');
+  document.getElementById('pin-input').value = '';
+  document.getElementById('tbl-pin').value = '';
+  updatePinStatus();
+  document.getElementById('events-auth-msg').style.display = '';
+  document.getElementById('events-content').style.display = 'none';
+  clearEvent();
+  toast('Sesión cerrada', 'info');
 }
 
 function updatePinStatus() {
-  const el = document.getElementById('pin-status');
+  const statusEl = document.getElementById('pin-status');
+  const btn      = document.getElementById('topbar-btn');
+  const input    = document.getElementById('pin-input');
   if (state.adminPin) {
-    el.textContent = '🔓 Admin';
-    el.className = 'unlocked';
-    document.getElementById('pin-input').value = state.adminPin;
+    statusEl.textContent = '🔓 Admin';
+    statusEl.className   = 'unlocked';
+    input.style.display  = 'none';
+    statusEl.style.display = 'none';
+    btn.textContent = 'Desconectar';
+    btn.onclick = logout;
+    document.querySelectorAll('.auth-pin-row').forEach(r => r.style.display = 'none');
   } else {
-    el.textContent = '🔒 Sin PIN';
-    el.className = 'locked';
+    statusEl.textContent = '🔒 Sin PIN';
+    statusEl.className   = 'locked';
+    input.style.display  = '';
+    statusEl.style.display = 'none';
+    btn.textContent = 'Identificarse';
+    btn.onclick = setPin;
+    document.querySelectorAll('.auth-pin-row').forEach(r => r.style.display = '');
   }
 }
 
@@ -952,14 +1047,18 @@ async function loadEvents() {
       return;
     }
     list.innerHTML = events.map(ev => `
-      <div class="event-item${state.selectedEvent?.id === ev.id ? ' selected':''}"
-           data-id="${ev.id}" onclick="selectEvent(${JSON.stringify(ev).replace(/"/g,'&quot;')})">
-        <div class="event-icon">🎉</div>
-        <div>
-          <div class="event-name">${esc(ev.name)}</div>
-          <div class="event-date">${formatDate(ev.date)}</div>
+      <div class="event-row">
+        <div class="event-item${state.selectedEvent?.id === ev.id ? ' selected':''}"
+             data-id="${ev.id}" onclick="selectEvent(${JSON.stringify(ev).replace(/"/g,'&quot;')})">
+          <div class="event-icon">🎉</div>
+          <div>
+            <div class="event-name">${esc(ev.name)}</div>
+            <div class="event-date">${formatDate(ev.date)}</div>
+          </div>
         </div>
-        <span class="select-badge">${state.selectedEvent?.id === ev.id ? '✔ Seleccionado' : 'Seleccionar →'}</span>
+        <button class="btn-delete-event" title="Eliminar evento"
+          data-id="${ev.id}" data-name="${esc(ev.name)}"
+          onclick="openDeleteModal(+this.dataset.id, this.dataset.name)">🗑️</button>
       </div>
     `).join('');
   } catch (e) {
@@ -967,21 +1066,71 @@ async function loadEvents() {
   }
 }
 
-async function createEvent() {
+// ── Delete event ──
+let _deleteEventId = null;
+
+function openDeleteModal(id, name) {
+  _deleteEventId = id;
+  document.getElementById('del-event-name').textContent = name;
+  document.getElementById('del-event-pin').value = '';
+  document.getElementById('delete-event-modal').classList.add('open');
+  setTimeout(() => document.getElementById('del-event-pin').focus(), 80);
+}
+
+function closeDeleteModal() {
+  _deleteEventId = null;
+  document.getElementById('delete-event-modal').classList.remove('open');
+  document.getElementById('del-event-pin').value = '';
+}
+
+async function confirmDeleteEvent() {
+  const pin = document.getElementById('del-event-pin').value.trim();
+  if (!pin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  if (state.adminPin && pin !== state.adminPin) {
+    toast('PIN incorrecto', 'error');
+    document.getElementById('del-event-pin').value = '';
+    document.getElementById('del-event-pin').focus();
+    return;
+  }
+  const id = _deleteEventId;
+  btnLoading('btn-confirm-delete', true, 'Eliminando…');
+  try {
+    await apiFetch(`/api/events/${id}?admin_pin=${encodeURIComponent(pin)}`, { method: 'DELETE' });
+    toast('Evento eliminado', 'success');
+    if (state.selectedEvent?.id === id) state.selectedEvent = null;
+    closeDeleteModal();
+    loadEvents();
+  } catch (e) {
+    if (e.message.includes('401') || e.message.toLowerCase().includes('pin') || e.message.toLowerCase().includes('unauthorized')) {
+      toast('PIN incorrecto', 'error');
+      document.getElementById('del-event-pin').value = '';
+      document.getElementById('del-event-pin').focus();
+    } else {
+      toast(e.message, 'error');
+    }
+  } finally {
+    btnLoading('btn-confirm-delete', false);
+  }
+}
+
+async function submitEvent() {
   const name   = document.getElementById('ev-name').value.trim();
   const date   = document.getElementById('ev-date').value;
   const pin    = document.getElementById('ev-pin').value || state.adminPin;
   if (!name) { toast('El nombre es requerido', 'error'); return; }
   if (!pin)  { toast('Ingresa el PIN de administrador', 'error'); return; }
+  const payload = { name, date: date || null, admin_pin: pin };
   btnLoading('btn-create-event', true, 'Creando…');
   try {
     const ev = await apiFetch('/api/events', {
       method: 'POST',
-      body: JSON.stringify({ name, date: date || null, admin_pin: pin }),
+      body: JSON.stringify(payload),
     });
     toast(`Evento "${ev.name}" creado`, 'success');
     document.getElementById('ev-name').value = '';
-    document.getElementById('ev-date').value = '';
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ev-date').value = today;
+    document.getElementById('ev-date-picker').value = today;
     loadEvents();
   } catch (e) {
     toast(e.message, 'error');
@@ -1003,28 +1152,203 @@ async function loadBarmans() {
       `${barmans.length} barman${barmans.length !== 1 ? 's' : ''} registrado${barmans.length !== 1 ? 's' : ''}`;
     if (!barmans || barmans.length === 0) {
       list.innerHTML = `<div class="empty"><div class="empty-icon">🍹</div>Sin barmans aún</div>`;
+      loadBarmanPool();
       return;
     }
     list.innerHTML = barmans.map(b => `
       <div class="barman-item">
         <div class="barman-avatar">${esc(b.name[0].toUpperCase())}</div>
-        <div>
+        <div style="flex:1">
           <div class="barman-name">${esc(b.name)}</div>
-          <div class="barman-pin">PIN: ${'•'.repeat((b.pin||'').length || 4)}</div>
+          <div class="barman-pin">Usuario: <strong>${esc(b.username || '—')}</strong> &nbsp;&bull;&nbsp; PIN: ${'&bull;'.repeat((b.pin||'').length || 4)}</div>
         </div>
-        ${b.coupon_count != null ? `<span class="badge badge-info" style="margin-left:auto">${b.coupon_count} canjes</span>` : ''}
+        ${b.coupon_count != null ? `<span class="badge badge-info" style="margin-right:8px">${b.coupon_count} canjes</span>` : ''}
+        <button onclick="removeBarmanFromEvent(${b.id}, '${esc(b.name)}')"
+          style="padding:4px 10px;font-size:.78rem;background:transparent;border:1px solid var(--danger);color:var(--danger);border-radius:6px;cursor:pointer"
+          title="Quitar del evento">🗑</button>
       </div>
     `).join('');
   } catch (e) {
     list.innerHTML = `<div class="empty">❌ ${esc(e.message)}</div>`;
   }
+  loadBarmanPool();
+}
+
+async function loadBarmanPool() {
+  if (!state.selectedEvent) return;
+  const poolList = document.getElementById('pool-list');
+  poolList.innerHTML = `<div class="empty"><span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></span></div>`;
+  try {
+    const [pool, eventBarmans] = await Promise.all([
+      apiFetch('/api/barmans'),
+      apiFetch(`/api/events/${state.selectedEvent.id}/barmans`),
+    ]);
+    document.getElementById('pool-count-label').textContent = `${pool.length} en el sistema`;
+    if (!pool || pool.length === 0) {
+      poolList.innerHTML = `<div class="empty"><div class="empty-icon">🍹</div>Aún no hay barmans</div>`;
+      return;
+    }
+    const assignedUsernames = new Set(eventBarmans.map(b => b.username));
+    const barmanByUsername = Object.fromEntries(eventBarmans.map(b => [b.username, b]));
+    poolList.innerHTML = pool.map(b => {
+      const isAssigned = assignedUsernames.has(b.username);
+      const assignedBm = barmanByUsername[b.username];
+      const eventNames = b.assignments.map(a => esc(a.event_name)).join(', ') || '—';
+      const assignBtn = isAssigned
+        ? `<button disabled
+            style="padding:4px 10px;font-size:.78rem;background:transparent;border:1px solid #ccc;color:#bbb;border-radius:6px;cursor:not-allowed"
+            title="Ya está en el evento">+ Evento</button>`
+        : `<button onclick="assignBarmanToEvent('${esc(b.username)}')"
+            style="padding:4px 10px;font-size:.78rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer"
+            title="Asignar al evento">+ Evento</button>`;
+      const removeBtn = isAssigned
+        ? `<button onclick="removeBarmanFromEvent(${assignedBm.id}, '${esc(b.name)}')"
+            style="padding:4px 10px;font-size:.78rem;background:transparent;border:1px solid var(--danger);color:var(--danger);border-radius:6px;cursor:pointer"
+            title="Quitar del evento">✕ Evento</button>`
+        : `<button disabled
+            style="padding:4px 10px;font-size:.78rem;background:transparent;border:1px solid #ccc;color:#bbb;border-radius:6px;cursor:not-allowed"
+            title="No está en el evento">✕ Evento</button>`;
+      return `
+        <div class="barman-item">
+          <div class="barman-avatar">${esc(b.name[0].toUpperCase())}</div>
+          <div style="flex:1">
+            <div class="barman-name">${esc(b.name)}</div>
+            <div class="barman-pin">Usuario: <strong>${esc(b.username || '—')}</strong></div>
+            <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">Eventos: ${eventNames}</div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            ${assignBtn}
+            ${removeBtn}
+          </div>
+          <button onclick="openDeleteBarmanModal('${esc(b.username)}', '${esc(b.name)}', ${b.assignments.length})"
+            style="padding:4px 10px;font-size:.78rem;background:transparent;border:1px solid #999;color:#666;border-radius:6px;cursor:pointer;margin-left:4px"
+            title="Eliminar del sistema">🗑 Sistema</button>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    poolList.innerHTML = `<div class="empty">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function assignBarmanToEvent(username) {
+  const adminPin = state.adminPin;
+  if (!adminPin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  if (!state.selectedEvent) { toast('Selecciona un evento primero', 'error'); return; }
+  try {
+    await apiFetch(`/api/events/${state.selectedEvent.id}/barmans/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ username, admin_pin: adminPin }),
+    });
+    toast(`Barman "${username}" asignado al evento`, 'success');
+    loadBarmans();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Delete barman from system ──
+let _deleteBarmanUsername = null;
+
+function openDeleteBarmanModal(username, name, assignmentCount) {
+  _deleteBarmanUsername = username;
+  document.getElementById('del-barman-name').textContent = name + ' (' + username + ')';
+  document.getElementById('del-barman-pin').value = '';
+  const warnEl = document.getElementById('del-barman-warning-coupons');
+  if (assignmentCount > 0) {
+    warnEl.style.display = '';
+    warnEl.innerHTML = `⚠️ Este barman está asignado a <strong>${assignmentCount} evento${assignmentCount !== 1 ? 's' : ''}</strong>. Al eliminarlo se quitará de todos ellos.`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+  document.getElementById('delete-barman-modal').classList.add('open');
+  setTimeout(() => document.getElementById('del-barman-pin').focus(), 80);
+}
+
+function closeDeleteBarmanModal() {
+  _deleteBarmanUsername = null;
+  document.getElementById('delete-barman-modal').classList.remove('open');
+  document.getElementById('del-barman-pin').value = '';
+}
+
+async function confirmDeleteBarmanFromSystem(force = false) {
+  const pin = document.getElementById('del-barman-pin').value.trim();
+  if (!pin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  if (state.adminPin && pin !== state.adminPin) {
+    toast('PIN incorrecto', 'error');
+    document.getElementById('del-barman-pin').value = '';
+    document.getElementById('del-barman-pin').focus();
+    return;
+  }
+  const username = _deleteBarmanUsername;
+  btnLoading('btn-confirm-delete-barman', true, 'Eliminando…');
+  try {
+    const res = await fetch(
+      `${API}/api/barmans/${encodeURIComponent(username)}?admin_pin=${encodeURIComponent(pin)}&force=${force}`,
+      { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+    );
+    if (res.status === 409 && !force) {
+      const data = await res.json();
+      // Show coupon warning inside modal and re-enable confirm button, then set it to force mode
+      const warnEl = document.getElementById('del-barman-warning-coupons');
+      warnEl.style.display = '';
+      warnEl.innerHTML = `⚠️ <strong>${data.detail}</strong><br>Si continuas, esos cupones quedarán sin barman asignado y <strong>no podrán canjearse offline</strong>.`;
+      const btn = document.getElementById('btn-confirm-delete-barman');
+      btn.innerHTML = '🗑 Confirmar de todas formas';
+      btn.disabled = false;
+      btn.onclick = () => confirmDeleteBarmanFromSystem(true);
+      return;
+    }
+    if (!res.ok) {
+      let errMsg = `Error ${res.status}`;
+      try { const j = await res.json(); errMsg = j.detail || errMsg; } catch {}
+      toast(errMsg, 'error'); return;
+    }
+    toast(`Barman "${username}" eliminado del sistema`, 'success');
+    closeDeleteBarmanModal();
+    loadBarmans();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btnLoading('btn-confirm-delete-barman', false);
+    document.getElementById('btn-confirm-delete-barman').onclick = () => confirmDeleteBarmanFromSystem();
+  }
+}
+
+async function removeBarmanFromEvent(barmanId, barmanName, force = false) {
+  if (!state.adminPin) { toast('Ingresa el PIN de administrador', 'error'); return; }
+  if (!state.selectedEvent) return;
+  try {
+    const res = await fetch(
+      `${API}/api/events/${state.selectedEvent.id}/barmans/${barmanId}?admin_pin=${encodeURIComponent(state.adminPin)}&force=${force}`,
+      { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+    );
+    if (res.status === 409 && !force) {
+      const data = await res.json();
+      const msg = data.detail || 'Este barman tiene cupón(es) asignado(s). El modo sin conexión no será posible para esos cupones.';
+      if (confirm(`${msg}\n\n¿Quitar igualmente? Los cupones quedarán sin barman asignado.`)) {
+        removeBarmanFromEvent(barmanId, barmanName, true);
+      }
+      return;
+    }
+    if (!res.ok) {
+      let errMsg = `Error ${res.status}`;
+      try { const j = await res.json(); errMsg = j.detail || errMsg; } catch {}
+      toast(errMsg, 'error'); return;
+    }
+    toast(`Barman "${barmanName}" quitado del evento`, 'success');
+    loadBarmans();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function createBarman() {
+  const username = document.getElementById('bm-username').value.trim();
   const name    = document.getElementById('bm-name').value.trim();
   const pin     = document.getElementById('bm-pin').value.trim();
   const adminPn = document.getElementById('bm-admin-pin').value || state.adminPin;
   if (!state.selectedEvent) { toast('Selecciona un evento primero', 'error'); return; }
+  if (!username) { toast('El nombre de usuario es requerido', 'error'); return; }
   if (!name) { toast('El nombre es requerido', 'error'); return; }
   if (!/^\d{4,6}$/.test(pin)) { toast('El PIN debe tener 4-6 dígitos', 'error'); return; }
   if (!adminPn) { toast('Ingresa el PIN de administrador', 'error'); return; }
@@ -1032,9 +1356,10 @@ async function createBarman() {
   try {
     await apiFetch('/api/barmans', {
       method: 'POST',
-      body: JSON.stringify({ name, pin, event_id: state.selectedEvent.id, admin_pin: adminPn }),
+      body: JSON.stringify({ username, name, pin, event_id: state.selectedEvent.id, admin_pin: adminPn }),
     });
     toast(`Barman "${name}" agregado`, 'success');
+    document.getElementById('bm-username').value = '';
     document.getElementById('bm-name').value = '';
     document.getElementById('bm-pin').value  = '';
     loadBarmans();
@@ -1061,6 +1386,18 @@ async function generateCoupons() {
   const pin = document.getElementById('gen-pin').value || state.adminPin;
   if (!pin) { toast('Ingresa el PIN de administrador', 'error'); return; }
 
+  // Check that at least one barman exists for this event
+  try {
+    const barmans = await apiFetch(`/api/events/${state.selectedEvent.id}/barmans`);
+    if (!barmans.length) {
+      toast('Debes crear al menos un barman antes de generar cupones', 'error');
+      return;
+    }
+  } catch (e) {
+    toast('No se pudo verificar los barmans: ' + e.message, 'error');
+    return;
+  }
+
   let payload = { event_id: state.selectedEvent.id, admin_pin: pin };
 
   if (state.genMode === 'bulk') {
@@ -1068,9 +1405,10 @@ async function generateCoupons() {
     if (!raw) { toast('Escribe al menos una línea', 'error'); return; }
     const entries = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
       const [email, ...nameParts] = line.split(',');
-      return { email: email.trim(), name: nameParts.join(',').trim() || null };
+      return { email: email.trim(), name: nameParts.join(',').trim() || '' };
     });
-    payload.coupons = entries;
+    payload.holders = entries;
+    payload.count = entries.length;
   } else {
     const count = parseInt(document.getElementById('gen-anon-count').value);
     if (!count || count < 1) { toast('Ingresa una cantidad válida', 'error'); return; }
@@ -1083,7 +1421,7 @@ async function generateCoupons() {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    const n = res.created ?? res.count ?? (res.coupons?.length ?? '?');
+    const n = Array.isArray(res) ? res.length : (res.created ?? res.count ?? '?');
     toast(`${n} cupones generados`, 'success');
     document.getElementById('gen-bulk-text').value = '';
     document.getElementById('gen-anon-count').value = '';
@@ -1117,6 +1455,19 @@ async function sendAllEmails() {
   }
 }
 
+async function deleteCoupon(id) {
+  if (!confirm('¿Borrar este cupón? Esta acción no se puede deshacer.')) return;
+  const pin = state.adminPin;
+  if (!pin) { toast('PIN no configurado', 'error'); return; }
+  try {
+    await apiFetch(`/api/coupons/${id}?admin_pin=${encodeURIComponent(pin)}`, { method: 'DELETE' });
+    toast('Cupón eliminado', 'success');
+    loadCoupons();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
 async function sendSingleEmail(code) {
   const pin = state.adminPin;
   if (!pin) { toast('PIN no configurado', 'error'); return; }
@@ -1131,7 +1482,7 @@ async function sendSingleEmail(code) {
     loadCoupons();
   } catch (e) {
     toast(e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '📧 Email'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Enviar Email'; }
   }
 }
 
@@ -1205,17 +1556,19 @@ function renderCouponTable() {
     else if (c.email_sent_at) badge = `<span class="badge badge-info">Email enviado</span>`;
     else                  badge = `<span class="badge badge-neutral">Pendiente</span>`;
 
-    const canSend = c.email && !c.email_sent_at && !c.redeemed_at;
-    const action  = canSend
-      ? `<button class="btn btn-outline btn-sm" id="send-btn-${esc(c.code)}" onclick="sendSingleEmail('${esc(c.code)}')">📧 Email</button>`
-      : `<span style="color:var(--text-muted);font-size:.78rem">—</span>`;
+    const canSend = c.holder_email && !c.email_sent_at && !c.redeemed_at;
+    const isPending = !c.redeemed_at;
+    let actions = [];
+    if (canSend) actions.push(`<button class="btn btn-outline btn-sm" id="send-btn-${esc(c.code)}" onclick="sendSingleEmail('${esc(c.code)}')">📧 Enviar Email</button>`);
+    if (isPending) actions.push(`<button class="btn btn-danger btn-sm" onclick="deleteCoupon(${c.id})">🗑 Borrar</button>`);
+    const action = actions.length ? actions.join(' ') : `<span style="color:var(--text-muted);font-size:.78rem">—</span>`;
 
     return `
       <tr>
         <td><span class="code-chip">${esc(c.code)}</span></td>
         <td>${esc(c.holder_name || '—')}</td>
-        <td style="font-size:.8rem;color:var(--text-muted)">${esc(c.email || '—')}</td>
-        <td>${esc(c.barman_name || '—')}</td>
+        <td style="font-size:.8rem;color:var(--text-muted)">${esc(c.holder_email || '—')}</td>
+        <td>${esc(c.assigned_barman_name || '—')}</td>
         <td>${badge}</td>
         <td>${action}</td>
       </tr>`;
@@ -1276,7 +1629,7 @@ async function loadMonitor() {
           <span class="ri-code">${esc(c.code)}</span>
           <span>${esc(c.holder_name || 'Anónimo')}</span>
           <div class="ri-meta">
-            <div>${esc(c.barman_name || '—')}</div>
+            <div>${esc(c.redeemed_by_barman_name || '—')}</div>
             <div>${formatTime(c.redeemed_at)}</div>
           </div>
         </div>`).join('');
@@ -1285,8 +1638,8 @@ async function loadMonitor() {
     // Barman breakdown
     const bd = document.getElementById('barman-breakdown');
     const byBarman = {};
-    coupons.filter(c => c.redeemed_at && c.barman_name).forEach(c => {
-      byBarman[c.barman_name] = (byBarman[c.barman_name] || 0) + 1;
+    coupons.filter(c => c.redeemed_at && c.redeemed_by_barman_name).forEach(c => {
+      byBarman[c.redeemed_by_barman_name] = (byBarman[c.redeemed_by_barman_name] || 0) + 1;
     });
     const entries = Object.entries(byBarman).sort((a,b) => b[1]-a[1]);
     const maxVal  = entries[0]?.[1] || 1;
@@ -1321,7 +1674,8 @@ function esc(str) {
 function formatDate(d) {
   if (!d) return '—';
   try {
-    return new Date(d).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+    const iso = d.length > 10 ? new Date(d).toISOString() : d;
+    return iso.slice(0, 10);
   } catch { return d; }
 }
 
@@ -1337,11 +1691,66 @@ function formatTime(dt) {
 // ═══════════════════════════════════════════════
 (function init() {
   updatePinStatus();
+  // Pre-fill today's date
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('ev-date').value = today;
+  document.getElementById('ev-date-picker').value = today;
+  document.getElementById('ev-date-picker').addEventListener('change', function() {
+    if (this.value) document.getElementById('ev-date').value = this.value;
+  });
   if (state.adminPin) {
-    document.querySelectorAll('input[type=password]').forEach(el => { el.value = state.adminPin; });
+    document.getElementById('tbl-pin').value = state.adminPin;
+    document.getElementById('events-auth-msg').style.display = 'none';
+    document.getElementById('events-content').style.display = '';
+    loadEvents();
   }
-  loadEvents();
 })();
 </script>
+
+<!-- ═══ DELETE EVENT MODAL ═══ -->
+<div class="modal-backdrop" id="delete-event-modal" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal-box">
+    <div class="modal-warning-icon">⚠️</div>
+    <div class="modal-title">Eliminar evento</div>
+    <div class="modal-body">
+      Estás a punto de eliminar el evento <strong id="del-event-name"></strong>.<br><br>
+      Esta acción <strong>no se puede deshacer</strong>. Se borrarán permanentemente
+      todos los cupones, barmans y datos asociados a este evento.
+    </div>
+    <div>
+      <label style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);display:block;margin-bottom:6px">PIN de administrador</label>
+      <input type="password" id="del-event-pin" placeholder="PIN" autocomplete="off"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;box-sizing:border-box" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirm-delete" onclick="confirmDeleteEvent()">🗑 Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete barman from system modal ── -->
+<div class="modal-backdrop" id="delete-barman-modal" onclick="if(event.target===this)closeDeleteBarmanModal()">
+  <div class="modal-box">
+    <div class="modal-warning-icon">🚨</div>
+    <div class="modal-title">Eliminar barman del sistema</div>
+    <div class="modal-body">
+      Estás a punto de eliminar permanentemente al barman <strong id="del-barman-name"></strong> del sistema.<br><br>
+      <strong>⚠️ ADVERTENCIA IMPORTANTE:</strong><br>
+      Esta acción elimina al barman de <em>todos los eventos</em>. Los clientes con cupones asignados a este barman
+      <strong>NO podrán canjearlos en modo sin conexión</strong> (offline). Solo podrán canjearse si el barman está online.<br><br>
+      <div id="del-barman-warning-coupons" style="display:none;background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:10px 14px;font-size:.88rem;color:#856404;margin-top:4px"></div>
+    </div>
+    <div>
+      <label style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);display:block;margin-bottom:6px">PIN de administrador para confirmar</label>
+      <input type="password" id="del-barman-pin" placeholder="PIN" autocomplete="off"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;box-sizing:border-box" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeDeleteBarmanModal()">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirm-delete-barman" onclick="confirmDeleteBarmanFromSystem()">🗑 Eliminar del sistema</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

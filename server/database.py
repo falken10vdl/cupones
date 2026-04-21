@@ -41,6 +41,7 @@ class Barman(Base):
     __tablename__ = "barmans"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String, nullable=True)
     name = Column(String, nullable=False)
     pin = Column(String(6), nullable=False)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
