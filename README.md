@@ -32,56 +32,116 @@ El servidor sirve tanto la API REST como los archivos estáticos del panel admin
 
 ## 📋 Requisitos previos
 
-| Requisito | Versión mínima |
-|-----------|----------------|
-| Python | 3.10+ |
-| Sistema operativo | Windows 10/11, macOS o Linux |
-| Cuenta Gmail | Con [contraseña de aplicación](https://support.google.com/accounts/answer/185833) habilitada |
+| Requisito | Versión mínima | Notas |
+|-----------|----------------|-------|
+| Windows | 10 / 11 (64-bit) | |
+| Python | 3.10+ | Instalar desde python.org |
+| Git | 2.x | Instalar desde git-scm.com |
+| Cuenta Gmail | — | Con [contraseña de aplicación](https://support.google.com/accounts/answer/185833) habilitada |
 
 > **Nota Gmail:** La contraseña de aplicación es un código de 16 caracteres que Google genera específicamente para apps de terceros. No uses tu contraseña normal de Google.
 
 ---
 
-## 🚀 Instalación paso a paso (Windows)
+## 🖥️ Instalación en Windows (paso a paso)
 
-### 1. Clonar el repositorio
+### 1. Instalar Python
 
-```bash
-git clone <url-del-repo>
-cd P2
+1. Ve a **https://www.python.org/downloads/** y descarga el instalador de Python 3.10 o superior.
+2. Ejecuta el instalador. **Importante:** marca la opción **"Add Python to PATH"** antes de pulsar *Install Now*.
+3. Verifica la instalación abriendo **PowerShell** o **Símbolo del sistema (cmd)** y ejecutando:
+
+```cmd
+python --version
+pip --version
 ```
 
-### 2. Instalar dependencias
+Ambos comandos deben mostrar un número de versión.
 
-```bash
+---
+
+### 2. Instalar Git
+
+1. Ve a **https://git-scm.com/download/win** y descarga el instalador.
+2. Ejecuta el instalador; puedes dejar todas las opciones por defecto.
+3. Verifica la instalación:
+
+```cmd
+git --version
+```
+
+---
+
+### 3. Clonar el repositorio
+
+Abre **PowerShell** o **cmd**, navega a la carpeta donde quieras guardar el proyecto y ejecuta:
+
+```cmd
+git clone https://github.com/falken10vdl/cupones.git
+cd cupones
+```
+
+---
+
+### 4. Crear un entorno virtual (recomendado)
+
+```cmd
 cd server
-python -m pip install -r requirements.txt
+python -m venv venv
+venv\Scripts\activate
 ```
 
-### 3. Configurar el entorno
+Tras activar el entorno verás `(venv)` al inicio del prompt. Para desactivarlo usa `deactivate`.
 
-```bash
-# Copiar el archivo de ejemplo y editarlo
+---
+
+### 5. Instalar dependencias
+
+Con el entorno virtual activo:
+
+```cmd
+pip install -r requirements.txt
+```
+
+---
+
+### 6. Configurar el entorno
+
+```cmd
 copy .env.example .env
 ```
 
-Abre `.env` con cualquier editor y completa los valores (ver sección [Configuración del .env](#️-configuración-del-env) más abajo).
+Abre `.env` con el Bloc de notas o cualquier editor de texto y completa los valores (ver sección [Configuración del .env](#️-configuración-del-env) más abajo).
 
-### 4. Iniciar el servidor
+---
 
-```bash
+### 7. Iniciar el servidor
+
+```cmd
 python app.py
 ```
 
 El servidor arranca en `http://localhost:8000` con recarga automática en modo desarrollo.
 
-### 5. Acceder a las interfaces
+> **Firewall de Windows:** la primera vez puede aparecer un aviso del Firewall de Windows Defender. Pulsa *Permitir acceso* para que los móviles de la misma red puedan conectarse a la app de barman.
+
+---
+
+### 8. Acceder a las interfaces
 
 | Interfaz | URL |
 |----------|-----|
 | Panel de administración | http://localhost:8000/admin/ |
 | App barman (PWA) | http://localhost:8000/barman/ |
 | Documentación API automática | http://localhost:8000/docs |
+
+Para que los barmans accedan desde su móvil, usa la **IP local** del ordenador en lugar de `localhost`. Puedes ver tu IP local con:
+
+```cmd
+ipconfig
+```
+
+Busca la línea **Dirección IPv4** (p. ej. `192.168.1.50`) y pide a los barmans que abran `http://192.168.1.50:8000/barman/`.
 
 ---
 
@@ -149,7 +209,7 @@ El sistema está diseñado para seguir funcionando aunque la WiFi del local fall
 ## 📁 Estructura del proyecto
 
 ```
-P2/
+cupones/
 ├── admin/
 │   └── index.html          # Panel de administración (SPA en vanilla JS)
 │
