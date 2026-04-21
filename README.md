@@ -115,7 +115,7 @@ Abre `.env` con el Bloc de notas o cualquier editor de texto y completa los valo
 
 ---
 
-### 7. Iniciar el servidor
+### 7. Iniciar el servidor principal
 
 ```cmd
 python app.py
@@ -125,12 +125,25 @@ El servidor arranca en `http://localhost:8000` con recarga automática en modo d
 
 > **Firewall de Windows:** la primera vez puede aparecer un aviso del Firewall de Windows Defender. Pulsa *Permitir acceso* para que los móviles de la misma red puedan conectarse a la app de barman.
 
+### 8. (Opcional) Iniciar la página de bienvenida
+
+Abre otra ventana de **cmd** o **PowerShell**, activa de nuevo el entorno virtual y ejecuta:
+
+```cmd
+cd server
+venv\Scripts\activate
+python landing.py
+```
+
+Esto levanta un servidor en `http://localhost:8080` que muestra la **IP local del servidor** (para que los barmans sepan a qué dirección conectarse) y renderiza esta documentación en HTML.
+
 ---
 
-### 8. Acceder a las interfaces
+### 9. Acceder a las interfaces
 
 | Interfaz | URL |
 |----------|-----|
+| **Página de bienvenida** (IP + docs) | http://localhost:8080/ |
 | Panel de administración | http://localhost:8000/admin/ |
 | App barman (PWA) | http://localhost:8000/barman/ |
 | Documentación API automática | http://localhost:8000/docs |
