@@ -51,21 +51,9 @@ El servidor **requiere HTTPS** para que la cámara del móvil funcione en la PWA
 
 ### Generar el certificado (una sola vez)
 
-Ejecuta este comando desde la carpeta `server/`:
+El comando exacto para generar el certificado se encuentra en el **paso de instalación correspondiente a tu sistema operativo** (ver [🚀 Instalación](#-instalación), paso *Generar el certificado TLS*). Las instrucciones varían ligeramente entre plataformas, especialmente en Windows con Git Bash.
 
-```bash
-openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.pem -days 365 -nodes \
-  -subj "/CN=localhost" \
-  -addext "subjectAltName=IP:127.0.0.1,IP:<TU-IP-LOCAL>"
-```
-
-Sustituye `<TU-IP-LOCAL>` por la IP de tu máquina en la red (p. ej. `192.168.1.10`). Puedes añadir varias IPs separándolas con comas:
-
-```
--addext "subjectAltName=IP:127.0.0.1,IP:192.168.1.10,IP:192.168.201.53"
-```
-
-Esto genera dos archivos en `server/`:
+El proceso genera dos archivos en `server/`:
 
 | Archivo | Descripción |
 |---------|-------------|
@@ -149,13 +137,55 @@ Abre `.env` con el Bloc de notas y completa los valores (ver [Configuración del
 
 ### 7. Generar el certificado TLS
 
-Desde la carpeta `server\` (en Git Bash o PowerShell con OpenSSL disponible):
+Las instrucciones siguientes usan **Git Bash** (incluido con Git for Windows). También son posibles otras opciones como PowerShell o un OpenSSL instalado por separado. Abre Git Bash, navega a la carpeta `server/` del proyecto y sigue estos pasos:
+
+**7a. Obtén tu IP local**
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.pem -days 365 -nodes \
-  -subj "/CN=localhost" \
-  -addext "subjectAltName=IP:127.0.0.1,IP:<TU-IP-LOCAL>"
+ipconfig
 ```
+
+Busca la línea **Dirección IPv4** bajo tu adaptador Wi-Fi o Ethernet (p. ej. `192.168.1.10`).
+
+**7b. Crea un archivo de configuración temporal**
+
+Este método evita problemas de compatibilidad con la opción `-addext` en algunas versiones de OpenSSL incluidas con Git for Windows. Ejecuta el siguiente bloque completo en Git Bash (sustituyendo `<TU-IP-LOCAL>` por tu IP real):
+
+```bash
+cat > san.cnf << 'EOF'
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+CN = localhost
+
+[v3_req]
+subjectAltName = IP:127.0.0.1,IP:<TU-IP-LOCAL>
+EOF
+```
+
+Puedes añadir más IPs separando con comas, p. ej.:
+```
+subjectAltName = IP:127.0.0.1,IP:192.168.1.10,IP:192.168.201.53
+```
+
+**7c. Genera el certificado**
+
+```bash
+openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.pem -days 365 -nodes -config san.cnf
+```
+
+**7d. Elimina el archivo temporal**
+
+```bash
+rm san.cnf
+```
+
+Deben quedar dos archivos nuevos en `server/`: `cert.pem` y `cert.key`.
+
+
 
 ### 8. Iniciar el servidor
 
